@@ -145,12 +145,6 @@ export default function DataPersonal() {
 
             <div className="flex justify-end gap-8 mt-20">
               <button
-                onClick={handleBack}
-                className="bg-light-20 text-primary-40 border border-light-40 px-10 py-4 rounded-lg font-semibold hover:bg-light-30 transition"
-              >
-                Kembali
-              </button>
-              <button
                 onClick={handleEdit}
                 className="bg-primary-40 text-white px-10 py-4 rounded-lg font-semibold hover:bg-primary-50 transition"
               >
