@@ -1,0 +1,15 @@
+.env
+.env.local
+.DS_Store
+
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+backend/venv/
+
+
+*.xlsx
+*.csv
+
+node_modules/
