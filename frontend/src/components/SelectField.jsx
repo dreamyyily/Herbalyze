@@ -1,83 +1,109 @@
-import { useState, Fragment } from "react";
-import { Combobox, Transition } from "@headlessui/react";
-import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/20/solid";
+import { useState, useRef, useEffect } from "react";
+import { ChevronDownIcon, ChevronUpIcon, CheckIcon } from "@heroicons/react/20/solid";
 
-export default function SelectField({ label, options, required = false }) {
-  const [selected, setSelected] = useState(null);
-  const [query, setQuery] = useState("");
+export default function SelectField({ 
+  label, 
+  options = [], 
+  required = false,
+  value = [], // Kita selalu gunakan array agar konsisten
+  onChange,
+  closeOnSelect = true, // Prop untuk menentukan dropdown nutup otomatis atau tidak
+  placeholder = "Pilih..."
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(null);
 
-  const filteredOptions =
-    query === ""
-      ? options
-      : options.filter((opt) =>
-          opt.toLowerCase().includes(query.toLowerCase())
-        );
+  // Menutup dropdown saat klik di luar area
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelect = (item) => {
+    if (onChange) onChange(item);
+    if (closeOnSelect) setOpen(false);
+  };
+
+  const getDisplayText = () => {
+    if (value.length === 0) return <span className="text-gray-400">{placeholder}</span>;
+    return (
+      <span className="truncate text-gray-800 font-medium">
+        {value.join(", ")}
+      </span>
+    );
+  };
 
   return (
-    <div className="mb-10">
-      <Combobox value={selected} onChange={setSelected}>
-        {({ open }) => (
-          <div className="relative">
-            {/* Field wrapper */}
-            <div className="relative w-full rounded-xl border border-gray-300 bg-white px-5 py-4 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all">
-              {/* Floating label di pinggir kiri atas border */}
-              <Combobox.Label className="absolute left-5 -top-2.5 px-2 bg-white text-xs font-medium text-gray-500 pointer-events-none transition-colors focus-within:text-blue-500">
-                {label}
-                {required && <span className="text-red-500 ml-1">*</span>}
-              </Combobox.Label>
+    <div className="mb-8 relative" ref={wrapperRef}>
+      
+      {/* --- BOX TRIGGER (FLOATING LABEL) --- */}
+      <div
+        onClick={() => setOpen(!open)}
+        className={`relative w-full min-h-[56px] rounded-xl border bg-white px-4 py-3.5 cursor-pointer flex items-center justify-between transition-all duration-200
+          ${open 
+            ? 'border-blue-500 ring-1 ring-blue-500 shadow-sm' 
+            : 'border-gray-300 hover:border-gray-400'}
+        `}
+      >
+        <label className={`absolute left-3 -top-2.5 px-1.5 bg-white text-xs font-semibold transition-colors z-10
+            ${open ? 'text-blue-600' : 'text-gray-500'}`}>
+          {label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
 
-              {/* Input + placeholder di kiri, selected value hitam */}
-              <Combobox.Input
-                className="w-full border-none bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none pr-12"
-                displayValue={(opt) => opt || ""}
-                placeholder="Pilih"
-                onChange={(e) => setQuery(e.target.value)}
-              />
+        {/* Area Teks Terpilih */}
+        <div className="flex-1 min-w-0 flex items-center pr-4">
+          {getDisplayText()}
+        </div>
 
-              {/* Arrow flip single, tengah vertikal kanan */}
-              <Combobox.Button className="absolute inset-y-0 right-5 flex items-center">
-                {open ? (
-                  <ChevronUpIcon className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                )}
-              </Combobox.Button>
-            </div>
+        {/* Icon Panah */}
+        <div className="flex-shrink-0 text-gray-400">
+          {open ? (
+            <ChevronUpIcon className="h-5 w-5 text-blue-500" />
+          ) : (
+            <ChevronDownIcon className="h-5 w-5" />
+          )}
+        </div>
+      </div>
 
-            {/* Dropdown options - highlight abu halus seperti screenshot */}
-            <Transition
-              as={Fragment}
-              leave="transition ease-in duration-100"
-              leaveFrom="opacity-100"
-              leaveTo="opacity-0"
-            >
-              <Combobox.Options className="absolute z-50 mt-2 w-full overflow-auto rounded-xl bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                {filteredOptions.length === 0 && query !== "" ? (
-                  <div className="px-5 py-3 text-gray-500">
-                    Tidak ditemukan
-                  </div>
-                ) : (
-                  filteredOptions.map((opt) => (
-                    <Combobox.Option
-                      key={opt}
-                      value={opt}
-                      className={({ active }) =>
-                        `relative cursor-pointer select-none px-5 py-3 ${active ? "bg-gray-100 text-blue-700" : "text-gray-900"}`
-                      }
-                    >
-                      {({ selected }) => (
-                        <span className={`block truncate ${selected ? "font-medium text-blue-700" : "font-normal"}`}>
-                          {opt}
-                        </span>
-                      )}
-                    </Combobox.Option>
-                  ))
-                )}
-              </Combobox.Options>
-            </Transition>
-          </div>
-        )}
-      </Combobox>
+      {/* --- DROPDOWN MENU (Tanpa Search) --- */}
+      {open && (
+        <div className="absolute z-50 mt-2 w-full bg-white rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 overflow-hidden border border-gray-100 flex flex-col origin-top animate-in fade-in slide-in-from-top-1 duration-150">
+          
+          <ul className="max-h-60 overflow-y-auto py-1.5 overscroll-contain">
+            {options.map((item, index) => {
+              const isSelected = value.includes(item);
+
+              return (
+                <li
+                  key={index}
+                  onClick={() => handleSelect(item)}
+                  className={`px-4 py-2.5 mx-1.5 mb-0.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors duration-150
+                    ${isSelected ? "bg-blue-50/70" : "hover:bg-gray-50"}
+                  `}
+                >
+                  <span
+                    className={`text-sm truncate pr-4 ${
+                      isSelected ? "text-blue-700 font-semibold" : "text-gray-700 font-medium"
+                    }`}
+                  >
+                    {item}
+                  </span>
+
+                  {isSelected && (
+                    <CheckIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
