@@ -1,8 +1,46 @@
 import MainLayout from "../layouts/MainLayout";
 import SelectField from "../components/SelectField";
-import {diagnosisOptions, symptomOptions, specialConditionOptions, chemicalDrugOptions} from "../data/medicalOptions";
+import { useEffect, useState } from "react";
+import MultiSelectField from "../components/MultiSelectField";
 
 export default function Home() {
+  const [diagnosisOptions, setDiagnosisOptions] = useState([]);
+  const [symptomOptions, setSymptomOptions] = useState([]);
+
+  const specialConditionOptions = [
+    "Tidak ada",
+    "Ibu hamil",
+    "Ibu menyusui",
+    "Anak di bawah lima tahun"
+  ];
+
+  const chemicalDrugOptions =["Tidak", "Ya"];
+
+  useEffect(() => {
+    fetchDiagnoses();
+    fetchSymptoms();
+  }, []);
+
+  const fetchDiagnoses = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/diagnoses");
+      const data = await res.json();
+      setDiagnosisOptions(data);
+    } catch (err) {
+      console.error("Error fetch diagnosis:", err);
+    }
+  };
+
+  const fetchSymptoms = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/symptoms");
+      const data = await res.json();
+      setSymptomOptions(data);
+    }  catch (err) {
+      console.error("Error fetch symptoms:", err)
+    }
+  };
+
   return (
     <MainLayout>
       <div className="max-w-5xl mx-auto text-center mt-16 px-4">
@@ -16,8 +54,8 @@ export default function Home() {
         <div className="bg-white rounded-xl shadow-md p-12 max-w-3xl mx-auto border border-light-40">
           <h2 className="text-bold-24 text-dark-50 mb-12">Data Medis</h2>
 
-          <SelectField label="Diagnosis Penyakit" options={diagnosisOptions}/>
-          <SelectField label="Gejala Yang Dialami" options={symptomOptions}/>
+          <MultiSelectField label="Diagnosis Penyakit" options={diagnosisOptions}/>
+          <MultiSelectField label="Gejala Yang Dialami" options={symptomOptions}/>
           <SelectField label="Kondisi Khusus" required options={specialConditionOptions}/>
           <SelectField label="Sedang Mengonsumsi Obat Kimia" required options={chemicalDrugOptions}/>
 

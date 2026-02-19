@@ -1,12 +1,12 @@
 import MainLayout from "../layouts/MainLayout";
 import SelectField from "../components/SelectField";
 import InputField from "../components/InputField";
-import { herbsOptions } from "../data/medicalOptions";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatTanggal } from "../utils/formatTanggal";
 import { validateRequired } from "../utils/validateForm";
 import { loadProfile, saveProfile } from "../utils/storage";
+import MultiSelectField from "../components/MultiSelectField";
 
 const genderOptions = ["Laki-laki", "Perempuan"];
 
@@ -34,6 +34,7 @@ export default function DataPersonal() {
   alergiHerbal: "Alergi Herbal",
   };
 
+  const [herbsOptions, setHerbsOptions] = useState([]);
 
   useEffect(() => {
   const profile = loadProfile();
@@ -41,6 +42,11 @@ export default function DataPersonal() {
     setFormData(profile);
     setPhotoPreview(profile.photo);
   }
+
+  fetch("http://127.0.0.1:8000/api/herbs")
+  .then((res) => res.json())
+  .then((data) => setHerbsOptions(data))
+  .catch((err) => console.error("Gagal load herbs:", err));
 }, []);
 
   const handlePhotoChange = (e) => {
@@ -204,7 +210,7 @@ export default function DataPersonal() {
             <InputField label="Email" name="email" type="email" placeholder="mail@example.com" value={formData.email} onChange={handleInputChange} required error={errors.email} />
             <InputField label="Nomor HP" name="nomorHp" placeholder="08xx" value={formData.nomorHp} onChange={handleInputChange} />
             <SelectField label="Jenis Kelamin" options={genderOptions} value={formData.jenisKelamin} onChange={(value) => handleSelectChange("jenisKelamin", value)} />
-            <SelectField label="Alergi Herbal" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
+            <MultiSelectField label="Alergi Herbal" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
           </div>
 
           <div className="flex justify-end mt-16">
