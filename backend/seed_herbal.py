@@ -47,7 +47,6 @@ def process_and_seed():
         return
 
     # File target
-    # File target
     files_to_process = {
         "symptoms": {
             "file": "Herbal gejala.csv",
@@ -77,6 +76,17 @@ def process_and_seed():
                 'Cara Penyajian': 'preparation',
                 'Sumber Label': 'source_label',
                 'Sumber URL': 'source'
+            }
+        },
+        "special_conditions": {
+            "file": "kondisi khusus.csv",
+            "table": "herbal_special_conditions",
+            "mapping": {
+                'Nama Hebal': 'herbal_name',
+                'Nama Latin': 'latin_name',
+                'kondisi khusus': 'special_condition',
+                'deskripsi efek': 'description',
+                'referensi': 'reference'
             }
         }
     }

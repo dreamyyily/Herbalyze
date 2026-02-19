@@ -20,7 +20,24 @@ export default function Navbar() {
         </NavLink>
       </div>
 
-      <div className="text-regular-16 text-dark-30">LP</div>
+      <div className="flex items-center gap-6">
+          <div className="text-regular-16 text-dark-30 font-medium">
+             {/* Display Wallet Address (Truncated) or User Initial */}
+             {localStorage.getItem('user_wallet') ? 
+                localStorage.getItem('user_wallet').substring(0, 6) + '...' + localStorage.getItem('user_wallet').slice(-4) 
+                : 'User'}
+          </div>
+          <button 
+            onClick={() => {
+                localStorage.removeItem('user_wallet');
+                localStorage.removeItem('user_profile');
+                window.location.href = '/';
+            }}
+            className="text-sm font-medium text-danger-30 border border-light-40 hover:bg-danger-10 hover:border-danger-30 px-5 py-2 rounded-full transition-all"
+          >
+            Logout
+          </button>
+      </div>
     </nav>
   );
 }
