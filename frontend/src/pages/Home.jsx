@@ -47,22 +47,28 @@ export default function Home() {
     }
   };
 
-  const handleConditionToggle = (clickedItem) => {
-    if (clickedItem === "Tidak ada" || clickedItem === "Anak di bawah lima tahun") {
-      setSelectedCondition([clickedItem]);
-      return;
-    }
-    let newSelected = [...selectedCondition];
-    newSelected = newSelected.filter(
-      (item) => item !== "Tidak ada" && item !== "Anak di bawah lima tahun"
-    );
-    if (newSelected.includes(clickedItem)) {
-      newSelected = newSelected.filter((item) => item !== clickedItem);
-    } else {
-      newSelected.push(clickedItem);
-    }
-    setSelectedCondition(newSelected);
-  };
+  const handleConditionChange = (newArray) => {
+  const exclusive = ["Tidak ada", "Anak di bawah lima tahun"];
+
+  const lastClicked = newArray.find((item) => !selectedCondition.includes(item)) || selectedCondition.find((item) => !newArray.includes(item));
+
+  if (!lastClicked) {
+    setSelectedCondition(newArray);
+    return;
+  }
+
+  const isExclusive = exclusive.includes(lastClicked);
+  if (isExclusive) {
+    setSelectedCondition([lastClicked]);
+    return;
+  }
+
+  let cleaned = newArray.filter(
+    (item) => !exclusive.includes(item)
+  );
+
+  setSelectedCondition(cleaned);
+};
 
   const handleDrugToggle = (clickedItem) => {
     setSelectedDrug([clickedItem]);
@@ -136,18 +142,8 @@ export default function Home() {
                   <span className="w-6 h-[2px] bg-blue-600"></span>
                   Kondisi Kesehatan
                 </div>
-                <MultiSelectField 
-                  label="Diagnosis Penyakit" 
-                  options={diagnosisOptions}
-                  value={selectedDiagnoses}
-                  onChange={setSelectedDiagnoses}
-                />
-                <MultiSelectField 
-                  label="Gejala Yang Dialami" 
-                  options={symptomOptions}
-                  value={selectedSymptoms}
-                  onChange={setSelectedSymptoms}
-                />
+                <MultiSelectField label="Diagnosis Penyakit" options={diagnosisOptions} value={selectedDiagnoses} onChange={setSelectedDiagnoses} />
+                <MultiSelectField label="Gejala Yang Dialami" options={symptomOptions} value={selectedSymptoms} onChange={setSelectedSymptoms} />
               </div>
 
               <div className="space-y-6">
@@ -155,22 +151,8 @@ export default function Home() {
                   <span className="w-6 h-[2px] bg-blue-600"></span>
                   Profil Keamanan
                 </div>
-                <SelectField 
-                  label="Kondisi Khusus" 
-                  required 
-                  options={specialConditionOptions}
-                  value={selectedCondition}
-                  onChange={handleConditionToggle}
-                  closeOnSelect={false} 
-                />
-                <SelectField 
-                  label="Konsumsi Obat Kimia" 
-                  required 
-                  options={chemicalDrugOptions}
-                  value={selectedDrug}
-                  onChange={handleDrugToggle}
-                  closeOnSelect={true}
-                />
+                <MultiSelectField label="Kondisi Khusus" required options={specialConditionOptions} value={selectedCondition} onChange={handleConditionChange} />
+                <SelectField label="Konsumsi Obat Kimia" required options={chemicalDrugOptions} value={selectedDrug} onChange={handleDrugToggle} />
               </div>
             </div>
 
