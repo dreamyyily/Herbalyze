@@ -314,5 +314,73 @@ def get_special_conditions():
         traceback.print_exc()
         return jsonify({'error': f'Failed to fetch special conditions: {str(e)}'}), 500
 
+@app.route('/api/recommend', methods=['POST'])
+def recommend_herbal():
+    try:
+        data = request.json
+        sel_diag = data.get('diagnosis', [])
+        sel_symp = data.get('gejala', [])
+        sel_cond = data.get('kondisi', []) # Contoh: ["Ibu hamil"]
+
+        # 1. Ambil Nama Herbal berdasarkan Diagnosis (Exact Match)
+        diag_herbal_names = []
+        if sel_diag:
+            diag_query = db.session.query(HerbalDiagnosis.herbal_name).filter(
+                HerbalDiagnosis.diagnosis.in_(sel_diag)
+            ).all()
+            diag_herbal_names = [h.herbal_name for h in diag_query]
+
+        # 2. Ambil Nama Herbal berdasarkan Gejala (Exact Match)
+        symp_herbal_names = []
+        if sel_symp:
+            symp_query = db.session.query(HerbalSymptom.herbal_name).filter(
+                HerbalSymptom.symptom.in_(sel_symp)
+            ).all()
+            symp_herbal_names = [h.herbal_name for h in symp_query]
+
+        # 3. Gabungkan hasil (Union - mencari yang muncul di salah satu atau keduanya)
+        potential_herbal_names = list(set(diag_herbal_names + symp_herbal_names))
+
+        # 4. FILTER KEAMANAN: Cek Kondisi Khusus
+        final_results = []
+        if potential_herbal_names:
+            # Cari detail lengkap herbal tersebut
+            herbal_details = HerbalDiagnosis.query.filter(
+                HerbalDiagnosis.herbal_name.in_(potential_herbal_names)
+            ).all()
+
+            # Buat dictionary untuk menghindari duplikat herbal di hasil akhir
+            seen_herbals = {}
+
+            for h in herbal_details:
+                if h.herbal_name in seen_herbals: continue
+                
+                # Cek apakah herbal ini dilarang untuk kondisi user
+                is_safe = True
+                if sel_cond:
+                    # Cari di tabel special conditions
+                    restriction = HerbalSpecialCondition.query.filter(
+                        HerbalSpecialCondition.herbal_name == h.herbal_name,
+                        HerbalSpecialCondition.special_condition.in_(sel_cond)
+                    ).first()
+                    if restriction:
+                        is_safe = False
+                
+                if is_safe:
+                    seen_herbals[h.herbal_name] = True
+                    final_results.append({
+                        "name": h.herbal_name,
+                        "latin": h.latin_name,
+                        "image": h.image_url,
+                        "preparation": h.preparation,
+                        "part": h.part_used
+                    })
+
+        return jsonify(final_results), 200
+
+    except Exception as e:
+        print(f"Error Recommending: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
