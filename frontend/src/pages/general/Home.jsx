@@ -1,6 +1,6 @@
-import MainLayout from "../layouts/MainLayout";
-import SelectField from "../components/SelectField";
-import MultiSelectField from "../components/MultiSelectField";
+import MainLayout from "../../layouts/MainLayout";
+import SelectField from "../../components/SelectField";
+import MultiSelectField from "../../components/MultiSelectField";
 import { useEffect, useState } from "react";
 
 export default function Home() {

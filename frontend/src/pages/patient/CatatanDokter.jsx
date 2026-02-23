@@ -1,6 +1,6 @@
-import MainLayout from "../layouts/MainLayout";
-import { catatanDokter } from "../data/catatanDokter";
-import { formatTanggal } from "../utils/formatTanggal";
+import MainLayout from "../../layouts/MainLayout";
+import { catatanDokter } from "../../data/catatanDokter";
+import { formatTanggal } from "../../utils/formatTanggal";
 
 export default function CatatanDokter() {
   const data = catatanDokter; // [] untuk test empty state

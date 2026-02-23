@@ -20,16 +20,18 @@ export default function SelectField({ label, options = [], required = false, val
     if (closeOnSelect) setOpen(false);
   };
 
-  const getDisplayText = () => {
-    if (value.length === 0)
-      return <span className="text-dark-30">{placeholder}</span>;
+  const safeValue = Array.isArray(value) ? value : value ? [value] : [];
 
-    return (
-      <span className="truncate text-dark-50 font-medium">
-        {value.join(", ")}
-      </span>
-    );
-  };
+const getDisplayText = () => {
+  if (safeValue.length === 0)
+    return <span className="text-dark-30">{placeholder}</span>;
+
+  return (
+    <span className="truncate text-dark-50 font-medium">
+      {safeValue.join(", ")}
+    </span>
+  );
+};
 
   return (
     <div className="mb-8 relative" ref={wrapperRef}>
@@ -68,7 +70,8 @@ export default function SelectField({ label, options = [], required = false, val
         <div className="absolute z-50 mt-2 w-full bg-white rounded-xl shadow-lg ring-1 ring-black/5 border border-light-30 overflow-hidden flex flex-col">
           <ul className="max-h-60 overflow-y-auto py-1.5">
             {options.map((item, index) => {
-              const isSelected = value.includes(item);
+              const safeValue = Array.isArray(value) ? value : value ? [value] : [];
+              const isSelected = safeValue.includes(item);
 
               return (
                 <li

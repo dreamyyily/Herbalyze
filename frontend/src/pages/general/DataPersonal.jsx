@@ -1,12 +1,12 @@
-import MainLayout from "../layouts/MainLayout";
-import SelectField from "../components/SelectField";
-import InputField from "../components/InputField";
+import MainLayout from "../../layouts/MainLayout";
+import SelectField from "../../components/SelectField";
+import InputField from "../../components/InputField";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { formatTanggal } from "../utils/formatTanggal";
-import { validateRequired } from "../utils/validateForm";
-import { loadProfile, saveProfile } from "../utils/storage";
-import MultiSelectField from "../components/MultiSelectField";
+import { formatTanggal } from "../../utils/formatTanggal";
+import { validateRequired } from "../../utils/validateForm";
+import { loadProfile, saveProfile } from "../../utils/storage";
+import MultiSelectField from "../../components/MultiSelectField";
 
 const genderOptions = ["Laki-laki", "Perempuan"];
 
@@ -15,6 +15,12 @@ export default function DataPersonal() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [isEdit, setIsEdit] = useState(false);
   const [errors, setErrors] = useState({});
+  const [doctorRequest, setDoctorRequest] = useState({
+  isApplying: false,
+  nomorSTR: "",
+  institusi: "",
+  dokumen: null,
+});
   const [formData, setFormData] = useState({
     photo: null,
     nik: "",
@@ -24,7 +30,7 @@ export default function DataPersonal() {
     email: "",
     nomorHp: "",
     jenisKelamin: "",
-    alergiHerbal: "",
+    alergiHerbal: [],
   });
   const requiredFields = {
   nik: "NIK",
@@ -48,6 +54,25 @@ export default function DataPersonal() {
   .then((data) => setHerbsOptions(data))
   .catch((err) => console.error("Gagal load herbs:", err));
 }, []);
+
+  const handleDoctorChange = (e) => {
+  const { name, value } = e.target;
+  setDoctorRequest((prev) => ({ ...prev, [name]: value }));
+};
+
+const handleDoctorFile = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    setDoctorRequest((prev) => ({ ...prev, dokumen: file }));
+  }
+};
+
+const toggleDoctorApply = () => {
+  setDoctorRequest((prev) => ({
+    ...prev,
+    isApplying: !prev.isApplying,
+  }));
+};
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -211,6 +236,60 @@ export default function DataPersonal() {
             <InputField label="Nomor HP" name="nomorHp" placeholder="08xx" value={formData.nomorHp} onChange={handleInputChange} />
             <SelectField label="Jenis Kelamin" options={genderOptions} value={formData.jenisKelamin} onChange={(value) => handleSelectChange("jenisKelamin", value)} />
             <MultiSelectField label="Alergi Herbal" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
+          </div>
+
+          <div className="mt-12 border-t border-primary-20">
+            <h3 className="mt-3 text-bold-20 text-primary-50 mb-2">
+              Ajukan Verifikasi Dokter
+            </h3>
+
+            <p className="text-regular-14 text-dark-30 mb-8">
+              Jika Anda adalah tenaga medis profesional, Anda dapat mengajukan verifikasi untuk mendapatkan akses sebagai dokter di platform ini.
+            </p>
+
+            {!doctorRequest.isApplying ? (
+              <button
+                onClick={toggleDoctorApply}
+                className="px-8 py-3 rounded-2xl font-semibold border border-primary-40 text-primary-40 hover:bg-primary-40 hover:text-white transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+              >
+                Ajukan Verifikasi
+              </button>
+            ) : (
+              <div className="bg-white rounded-2xl p-6 space-y-6 border border-primary-30 ring-1 ring-primary-30 shadow-md">
+                <InputField label="Nomor STR (Surat Tanda Registrasi)" name="nomorSTR" placeholder="Masukkan nomor STR" value={doctorRequest.nomorSTR} onChange={handleDoctorChange} />
+                <InputField label="Institusi / Rumah Sakit" name="institusi" placeholder="RS Sehat Sejati" value={doctorRequest.institusi} onChange={handleDoctorChange} />
+
+                <div>
+                  <label className="text-regular-14 text-dark-40 block mb-2">
+                    Upload Dokumen Pendukung (STR / SIP)
+                  </label>
+                  <label className="block">
+                    <div className="border-2 border-dashed border-primary-30 rounded-xl p-4 text-center cursor-pointer hover:bg-primary-10 transition">
+                      <p className="text-primary-40 font-medium">
+                        Klik untuk upload dokumen
+                      </p>
+                      <p className="text-xs text-dark-30 mt-1">
+                        PDF / JPG / PNG
+                      </p>
+                    </div>
+                    <input type="file" className="hidden" onChange={handleDoctorFile} />
+                  </label>
+                </div>
+
+                <div className="flex gap-4">
+                  <button className="bg-primary-40 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-primary-50 transition-all duration-200 shadow-sm hshadow-md active:scale-[0.97]">
+                    Kirim Permintaan
+                  </button>
+
+                  <button
+                    onClick={toggleDoctorApply}
+                    className="px-6 py-3 rounded-2xl text-dark-40 hover:bg-light-20 transition-all"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end mt-16">

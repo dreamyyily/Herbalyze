@@ -1,9 +1,9 @@
 
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import Home from "./pages/Home.jsx"; 
-import DataPersonal from "./pages/DataPersonal.jsx";
-import CatatanDokter from "./pages/CatatanDokter.jsx";
+import Home from "./pages/general/Home.jsx";
+import DataPersonal from "./pages/general/DataPersonal.jsx";
+import CatatanDokter from "./pages/patient/CatatanDokter.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import { checkWalletConnection, listenToAccountChanges } from "./utils/web3Helpers";
