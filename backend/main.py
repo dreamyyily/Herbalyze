@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -298,7 +298,6 @@ def get_herbs(db: Session = Depends(get_db)):
     for row in result:
         if row[0]:
             names = [n.strip() for n in row[0].split("\n") if n.strip()]
-            
             if len(names) > 1:
                 main_name = names[0]
                 aliases = ", ".join(names[1:])
@@ -311,3 +310,109 @@ def get_herbs(db: Session = Depends(get_db)):
             filtered.append(label)
 
     return sorted(filtered)
+
+# =========================================================
+# FUNGSI REKOMENDASI (KAMUS KONDISI KHUSUS & ANTI-SPASI)
+# =========================================================
+@app.post("/api/recommend")
+async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
+    try:
+        data = await request.json()
+        sel_diag = data.get('diagnosis', [])
+        sel_symp = data.get('gejala', [])
+        raw_cond = data.get('kondisi', [])
+
+        # ---------------------------------------------------------
+        # KAMUS PENERJEMAH (RULE-BASED MAPPING)
+        # Mengubah bahasa UI (Frontend) menjadi bahasa mesin (Database)
+        # ---------------------------------------------------------
+        condition_mapping = {
+            "Ibu hamil": "hamil",
+            "Ibu menyusui": "menyusui",
+            "Anak di bawah lima tahun": "anak di bawah 5 tahun"
+        }
+
+        sel_cond = []
+        for c in raw_cond:
+            if c in condition_mapping:
+                sel_cond.append(condition_mapping[c])
+            elif c != "Tidak ada":
+                sel_cond.append(c)
+        # ---------------------------------------------------------
+
+        # Helper 1: Saring Herbal yang Dilarang (Mesin Rule-Based)
+        def get_safe_herbs(herb_names, conditions):
+            if not herb_names: return []
+            if not conditions: return list(herb_names)
+            
+            result = db.execute(text("""
+                SELECT herbal_name FROM herbal_special_conditions 
+                WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
+            """), {"names": list(herb_names), "conds": list(conditions)}).fetchall()
+            
+            unsafe = {row[0] for row in result if row[0]}
+            
+            # Buang herbal yang ada di daftar bahaya
+            return [h for h in herb_names if h not in unsafe]
+
+        # Helper 2: Ambil Detail Lengkap dengan UNION
+        def get_details(herb_names):
+            if not herb_names: return []
+            result = db.execute(text("""
+                SELECT herbal_name, latin_name, image_url, preparation, part_used, part_image_url, source_label, source
+                FROM herbal_diagnoses WHERE herbal_name = ANY(:names1)
+                UNION
+                SELECT herbal_name, latin_name, image_url, preparation, part_used, part_image_url, source_label, source
+                FROM herbal_symptoms WHERE herbal_name = ANY(:names2)
+            """), {"names1": list(herb_names), "names2": list(herb_names)}).fetchall()
+            
+            res = []
+            seen = set()
+            for r in result:
+                h_name = r[0]
+                if h_name not in seen:
+                    res.append({
+                        "name": h_name, "latin": r[1], "image": r[2], 
+                        "preparation": r[3], "part": r[4], "part_image": r[5], 
+                        "source_label": r[6], "source_link": r[7]
+                    })
+                    seen.add(h_name)
+            return res
+
+        grouped_results = []
+
+        all_diags = db.execute(text("SELECT diagnosis, herbal_name FROM herbal_diagnoses")).fetchall()
+        all_symps = db.execute(text("SELECT symptom, herbal_name FROM herbal_symptoms")).fetchall()
+
+        # PROSES DIAGNOSIS
+        for d in sel_diag:
+            found = {r[1] for r in all_diags if r[0] and r[0].strip() == d and r[1]}
+            safe = get_safe_herbs(found, sel_cond)
+            if safe:
+                details = get_details(safe)
+                if details:
+                    grouped_results.append({
+                        "group_type": "Diagnosis",
+                        "group_name": d,
+                        "herbs": details
+                    })
+
+        # PROSES GEJALA
+        for s in sel_symp:
+            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s and r[1]}
+            safe = get_safe_herbs(found, sel_cond)
+            if safe:
+                details = get_details(safe)
+                if details:
+                    grouped_results.append({
+                        "group_type": "Gejala",
+                        "group_name": s,
+                        "herbs": details
+                    })
+
+        return grouped_results
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
