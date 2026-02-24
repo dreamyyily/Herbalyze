@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request
+import json  # <--- DITAMBAHKAN: Untuk memproses data JSON sebelum masuk database
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from db import get_connection
 
@@ -54,19 +55,22 @@ def get_herbs():
     return sorted(result)
 
 # =========================================================
-# FUNGSI REKOMENDASI (KAMUS KONDISI KHUSUS & ANTI-SPASI)
+# FUNGSI REKOMENDASI & PENCATATAN RIWAYAT
 # =========================================================
 @app.post("/api/recommend")
 async def recommend_herbal(request: Request):
     try:
         data = await request.json()
+        
+        # Mengambil identitas & input pasien
+        wallet_addr = data.get('wallet_address', 'guest_user') # <--- DITAMBAHKAN: Tangkap Wallet
         sel_diag = data.get('diagnosis', [])
         sel_symp = data.get('gejala', [])
         raw_cond = data.get('kondisi', [])
+        obat_kimia = data.get('obat_kimia', [])                # <--- DITAMBAHKAN: Tangkap Obat Kimia
 
         # ---------------------------------------------------------
         # KAMUS PENERJEMAH (RULE-BASED MAPPING)
-        # Mengubah bahasa UI (Frontend) menjadi bahasa mesin (Database)
         # ---------------------------------------------------------
         condition_mapping = {
             "Ibu hamil": "hamil",
@@ -80,12 +84,11 @@ async def recommend_herbal(request: Request):
                 sel_cond.append(condition_mapping[c])
             elif c != "Tidak ada":
                 sel_cond.append(c)
-        # ---------------------------------------------------------
 
         conn = get_connection()
         cur = conn.cursor()
 
-        # Helper 1: Saring Herbal yang Dilarang (Mesin Rule-Based)
+        # Helper 1: Saring Herbal yang Dilarang
         def get_safe_herbs(herb_names, conditions):
             if not herb_names: return []
             if not conditions: return list(herb_names)
@@ -96,7 +99,6 @@ async def recommend_herbal(request: Request):
             """, (list(herb_names), conditions))
             unsafe = {row[0] for row in cur.fetchall() if row[0]}
             
-            # Buang herbal yang ada di daftar bahaya
             return [h for h in herb_names if h not in unsafe]
 
         # Helper 2: Ambil Detail Lengkap dengan UNION
@@ -158,6 +160,38 @@ async def recommend_herbal(request: Request):
                         "herbs": details
                     })
 
+        # ---------------------------------------------------------
+        # PENCATATAN RIWAYAT (LOGGING) KE TABEL search_history
+        # ---------------------------------------------------------
+      # PROSES GEJALA
+        for s in sel_symp:
+            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s and r[1]}
+            # ... (kode lainnya) ...
+
+        # ---------------------------------------------------------
+        # PENCATATAN RIWAYAT (LOGGING) KE TABEL search_history
+        # ---------------------------------------------------------
+        if grouped_results:  # <--- BARIS INI HARUS SEJAJAR DENGAN 'for' DI ATASNYA
+            try:
+                cur.execute("""
+                    INSERT INTO search_history 
+                    (wallet_address, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                """, (
+                    wallet_addr,
+                    json.dumps(sel_diag),
+                    json.dumps(sel_symp),
+                    json.dumps(raw_cond),
+                    json.dumps(obat_kimia),
+                    json.dumps(grouped_results)
+                ))
+                conn.commit()
+                print(f"✅ Riwayat berhasil disimpan untuk: {wallet_addr}")
+            except Exception as e:
+                print(f"⚠️ Gagal menyimpan riwayat: {e}")
+                conn.rollback() 
+        # ---------------------------------------------------------
+        
         cur.close()
         conn.close()
 
@@ -166,4 +200,43 @@ async def recommend_herbal(request: Request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =========================================================
+# ENDPOINT BARU: MENGAMBIL RIWAYAT BERDASARKAN WALLET
+# =========================================================
+@app.get("/api/history/{wallet_address}")
+def get_user_history(wallet_address: str):
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # Mengambil riwayat terbaru di atas (ORDER BY created_at DESC)
+        cur.execute("""
+            SELECT id, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at
+            FROM search_history
+            WHERE wallet_address = %s
+            ORDER BY created_at DESC
+        """, (wallet_address,))
+        
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        history_list = []
+        for r in rows:
+            history_list.append({
+                "id": r[0],
+                "diagnoses": r[1],
+                "symptoms": r[2],
+                "special_conditions": r[3],
+                "chemical_drugs": r[4],
+                "recommendations": r[5],
+                "created_at": r[6].isoformat() if r[6] else None # Cek dulu apakah tanggalnya ada            })
+            }) #
+        return history_list
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil riwayat: {str(e)}")

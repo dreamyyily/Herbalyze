@@ -45,19 +45,25 @@ def create_database_if_not_exists():
         sys.exit(1)
 
 def create_tables():
-    """Buat semua tabel (users, dll) lewat Flask-SQLAlchemy."""
-    from app import app
+    """Buat semua tabel lewat Flask-SQLAlchemy tanpa butuh app.py"""
+    from flask import Flask
     from models import db
-    with app.app_context():
+    
+    # Bikin aplikasi Flask "bohongan" (dummy) khusus untuk menjalankan SQLAlchemy
+    dummy_app = Flask(__name__)
+    dummy_app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    dummy_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    db.init_app(dummy_app)
+    
+    with dummy_app.app_context():
         db.create_all()
-        print("✅ Semua tabel (users, herbal_diagnoses, herbal_symptoms, dll) sudah dibuat.")
-
+        print("✅ Semua tabel (termasuk search_history) sudah dibuat secara mandiri.")
+        
 if __name__ == '__main__':
     print("=" * 50)
     print("Setup Database Herbalyze")
     print("=" * 50)
     create_database_if_not_exists()
     create_tables()
-    print("=" * 50)
-    print("Selesai. Sekarang jalankan: python app.py")
     print("=" * 50)

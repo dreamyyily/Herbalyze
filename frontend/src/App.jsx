@@ -6,6 +6,7 @@ import DataPersonal from "./pages/general/DataPersonal.jsx";
 import CatatanDokter from "./pages/patient/CatatanDokter.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
+import Riwayat from './pages/general/Riwayat';
 import { checkWalletConnection, listenToAccountChanges } from "./utils/web3Helpers";
 
 const ProtectedRoute = ({ children }) => {
@@ -87,6 +88,11 @@ const AppContent = () => {
             <Route path="/catatan-dokter" element={
                 <ProtectedRoute>
                     <CatatanDokter />
+                </ProtectedRoute>
+            } />
+            <Route path="/riwayat" element={
+                <ProtectedRoute>
+                    <Riwayat />
                 </ProtectedRoute>
             } />
         </Routes>

@@ -57,3 +57,25 @@ class HerbalSpecialCondition(db.Model):
     special_condition = db.Column(db.String(255))  # hamil, menyusui, anak di bawah 5 tahun, dll
     description = db.Column(db.Text)  # deskripsi efek
     reference = db.Column(db.Text)  # referensi
+
+class SearchHistory(db.Model):
+    __tablename__ = 'search_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # index=True akan otomatis membuatkan Index agar pencarian data sangat cepat!
+    wallet_address = db.Column(db.String(255), nullable=False, index=True) 
+    
+    # db.JSON sangat cocok untuk menyimpan format list/array dari Frontend
+    diagnoses = db.Column(db.JSON, default=list)
+    symptoms = db.Column(db.JSON, default=list)
+    special_conditions = db.Column(db.JSON, default=list)
+    chemical_drugs = db.Column(db.JSON, default=list)
+    
+    # Menyimpan hasil akhir (Rekomendasi AI)
+    recommendations = db.Column(db.JSON, nullable=True)
+    
+    # Otomatis mencatat waktu saat riwayat disimpan
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SearchHistory {self.wallet_address} - {self.created_at}>"

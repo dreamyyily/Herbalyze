@@ -126,12 +126,16 @@ export default function Home() {
       setErrorMessage({ type: "Keamanan Pasien", text: "Mohon jawab apakah Anda sedang mengonsumsi Obat Kimia (Pilih Ya / Tidak) untuk mencegah interaksi obat yang berbahaya." });
       return;
     }
+// Mengambil identitas user dari penyimpanan browser
+    const userWallet = localStorage.getItem('user_wallet') || "guest_user"; 
 
-    // Persiapan data yang akan dikirim (Payload)
+    // Mempersiapkan paket data (Payload) lengkap untuk dikirim ke Backend
     const payload = { 
+      wallet_address: userWallet,      // <-- IDENTITAS PASIEN DITAMBAHKAN
       diagnosis: selectedDiagnoses, 
       gejala: selectedSymptoms, 
-      kondisi: selectedCondition 
+      kondisi: selectedCondition,
+      obat_kimia: selectedDrug         // <-- STATUS OBAT KIMIA DITAMBAHKAN
     };
     
     setIsLoading(true);
@@ -226,8 +230,7 @@ export default function Home() {
                   <span className="w-8 h-[3px] bg-primary-40 rounded-full"></span>
                   <h3 className="text-primary-60 font-bold text-sm uppercase tracking-widest">Profil Keamanan</h3>
                 </div>
-                <MultiSelectField label="Kondisi Khusus" options={specialConditionOptions} value={selectedCondition} onChange={handleConditionChange} />
-                <SelectField label="Konsumsi Obat Kimia" required options={chemicalDrugOptions} value={selectedDrug} onChange={(c) => setSelectedDrug([c])} closeOnSelect={true} />
+<MultiSelectField label="Kondisi Khusus" required options={specialConditionOptions} value={selectedCondition} onChange={handleConditionChange} />                <SelectField label="Konsumsi Obat Kimia" required options={chemicalDrugOptions} value={selectedDrug} onChange={(c) => setSelectedDrug([c])} closeOnSelect={true} />
               </div>
             </div>
 
