@@ -49,7 +49,7 @@ def process_and_seed():
     # File target
     files_to_process = {
         "symptoms": {
-            "file": "Herbal gejala.csv",
+            "file": "datasets/Herbal gejala.csv",
             "table": "herbal_symptoms",
             "mapping": {
                 'Gejala': 'symptom',
@@ -64,7 +64,7 @@ def process_and_seed():
             }
         },
         "diagnoses": {
-            "file": "Herbal diagnosis.csv",
+            "file": "datasets/Herbal diagnosis.csv",
             "table": "herbal_diagnoses",
             "mapping": {
                 'Nama Diagnosis': 'diagnosis',
@@ -79,7 +79,7 @@ def process_and_seed():
             }
         },
         "special_conditions": {
-            "file": "kondisi khusus.csv",
+            "file": "datasets/kondisi khusus.csv",
             "table": "herbal_special_conditions",
             "mapping": {
                 'Nama Hebal': 'herbal_name',

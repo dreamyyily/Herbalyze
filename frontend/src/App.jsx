@@ -6,6 +6,7 @@ import DataPersonal from "./pages/general/DataPersonal.jsx";
 import CatatanDokter from "./pages/patient/CatatanDokter.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
+import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import { checkWalletConnection, listenToAccountChanges } from "./utils/web3Helpers";
 
 const ProtectedRoute = ({ children }) => {
@@ -26,6 +27,28 @@ const ProtectedRoute = ({ children }) => {
 
     if (!isAuthenticated) {
         return <Navigate to="/" state={{ from: location }} replace />;
+    }
+
+    return children;
+};
+
+const AdminRoute = ({ children }) => {
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const location = useLocation();
+    
+    if (profile.role !== 'Admin') {
+        return <Navigate to="/" state={{ from: location }} replace />;
+    }
+
+    return children;
+};
+
+const DoctorRoute = ({ children }) => {
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const location = useLocation();
+    
+    if (profile.role !== 'Doctor' && profile.role !== 'Patient' && profile.role !== 'Pending_Doctor') {
+        return <Navigate to="/home" state={{ from: location }} replace />;
     }
 
     return children;
@@ -85,9 +108,14 @@ const AppContent = () => {
                 </ProtectedRoute>
             } />
             <Route path="/catatan-dokter" element={
-                <ProtectedRoute>
+                <DoctorRoute>
                     <CatatanDokter />
-                </ProtectedRoute>
+                </DoctorRoute>
+            } />
+            <Route path="/admin" element={
+                <AdminRoute>
+                    <AdminDashboard />
+                </AdminRoute>
             } />
         </Routes>
     );

@@ -3,6 +3,8 @@ import { catatanDokter } from "../../data/catatanDokter";
 import { formatTanggal } from "../../utils/formatTanggal";
 
 export default function CatatanDokter() {
+  const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+  const role = profile.role || 'Patient';
   const data = catatanDokter; // [] untuk test empty state
 
   return (
@@ -13,12 +15,21 @@ export default function CatatanDokter() {
           <div className="flex justify-between items-center mb-10">
             <h2 className="text-bold-24 text-dark-50">Catatan Dokter</h2>
 
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Pencarian"
-                className="pl-10 pr-4 py-3 rounded-full border border-light-40 focus:outline-none"
-              />
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Pencarian"
+                  className="pl-10 pr-4 py-3 rounded-full border border-light-40 focus:outline-none"
+                />
+              </div>
+              
+              {/* --- TOMBOL INI HANYA MUNCUL JIKA USER ADALAH DOKTER --- */}
+              {role === 'Doctor' && (
+                <button className="bg-primary-40 hover:bg-primary-50 text-white px-6 py-3 rounded-full font-semibold transition shadow-md flex items-center gap-2">
+                  <span>+</span> Tambah Catatan Baru
+                </button>
+              )}
             </div>
           </div>
 

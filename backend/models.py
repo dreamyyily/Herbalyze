@@ -1,18 +1,21 @@
-
-from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
 from datetime import datetime
+from db import Base
 
-db = SQLAlchemy()
-
-class User(db.Model):
+class User(Base):
     __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    wallet_address = db.Column(db.String(42), unique=True, nullable=True) # Nullable true because now we support email register first then connect wallet
-    name = db.Column(db.String(100), nullable=True)
-    email = db.Column(db.String(100), unique=True, nullable=True)
-    password_hash = db.Column(db.String(256), nullable=True)
-    is_profile_complete = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    wallet_address = Column(String(42), unique=True, nullable=True)
+    name = Column(String(100), nullable=True)
+    email = Column(String(100), unique=True, nullable=True)
+    password_hash = Column(String(256), nullable=True)
+    is_profile_complete = Column(Boolean, default=False)
+    role = Column(String(50), default='Patient') # Status akun (Patient / Pending_Doctor / Doctor / Admin)
+    nonce = Column(String(255), nullable=True)   # Menyimpan sandi acak / nonce Web3
+    nomor_str = Column(String(100), nullable=True)
+    nama_instansi = Column(String(255), nullable=True)
+    dokumen_str_path = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
@@ -20,40 +23,41 @@ class User(db.Model):
             'wallet_address': self.wallet_address,
             'name': self.name,
             'email': self.email,
-            'is_profile_complete': self.is_profile_complete
+            'is_profile_complete': self.is_profile_complete,
+            'role': self.role
         }
 
-class HerbalDiagnosis(db.Model):
+class HerbalDiagnosis(Base):
     __tablename__ = 'herbal_diagnoses'
-    index = db.Column(db.Integer, primary_key=True)
-    diagnosis = db.Column(db.String(255))
-    herbal_name = db.Column(db.Text)
-    latin_name = db.Column(db.String(255))
-    image_url = db.Column(db.Text)
-    part_used = db.Column(db.String(255))
-    part_image_url = db.Column(db.Text)
-    preparation = db.Column(db.Text)
-    source_label = db.Column(db.String(255))
-    source = db.Column(db.Text)
+    index = Column(Integer, primary_key=True, index=True)
+    diagnosis = Column(String(255))
+    herbal_name = Column(Text)
+    latin_name = Column(String(255))
+    image_url = Column(Text)
+    part_used = Column(String(255))
+    part_image_url = Column(Text)
+    preparation = Column(Text)
+    source_label = Column(String(255))
+    source = Column(Text)
 
-class HerbalSymptom(db.Model):
+class HerbalSymptom(Base):
     __tablename__ = 'herbal_symptoms'
-    index = db.Column(db.Integer, primary_key=True)
-    symptom = db.Column(db.String(255))
-    herbal_name = db.Column(db.Text)
-    latin_name = db.Column(db.String(255))
-    image_url = db.Column(db.Text)
-    part_used = db.Column(db.String(255))
-    part_image_url = db.Column(db.Text)
-    preparation = db.Column(db.Text)
-    source_label = db.Column(db.String(255))
-    source = db.Column(db.Text)
+    index = Column(Integer, primary_key=True, index=True)
+    symptom = Column(String(255))
+    herbal_name = Column(Text)
+    latin_name = Column(String(255))
+    image_url = Column(Text)
+    part_used = Column(String(255))
+    part_image_url = Column(Text)
+    preparation = Column(Text)
+    source_label = Column(String(255))
+    source = Column(Text)
 
-class HerbalSpecialCondition(db.Model):
+class HerbalSpecialCondition(Base):
     __tablename__ = 'herbal_special_conditions'
-    index = db.Column(db.Integer, primary_key=True)
-    herbal_name = db.Column(db.String(255))
-    latin_name = db.Column(db.String(255))
-    special_condition = db.Column(db.String(255))  # hamil, menyusui, anak di bawah 5 tahun, dll
-    description = db.Column(db.Text)  # deskripsi efek
-    reference = db.Column(db.Text)  # referensi
+    index = Column(Integer, primary_key=True, index=True)
+    herbal_name = Column(String(255))
+    latin_name = Column(String(255))
+    special_condition = Column(String(255))
+    description = Column(Text)
+    reference = Column(Text)

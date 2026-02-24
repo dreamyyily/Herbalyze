@@ -19,6 +19,27 @@ export const connectWallet = async () => {
 };
 
 /**
+ * Minta Nonce acak dari database
+ */
+export const requestNonce = async (address) => {
+    try {
+        const response = await fetch('http://localhost:8000/api/generate_nonce', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wallet_address: address })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to request nonce');
+        }
+        return data.nonce;
+    } catch (error) {
+        console.error("Nonce Error:", error);
+        throw error;
+    }
+};
+
+/**
  * Sign a message with MetaMask (FREE - no gas fee)
  * This is used for authentication without blockchain transactions
  */
@@ -47,14 +68,6 @@ export const signMessage = async (message) => {
         }
         throw new Error("Failed to sign message: " + error.message);
     }
-};
-
-/**
- * Generate authentication message for login
- */
-export const generateAuthMessage = (address) => {
-    const timestamp = Date.now();
-    return `Herbalyze Authentication\n\nPlease sign this message to authenticate with your wallet.\n\nWallet: ${address}\nTimestamp: ${timestamp}`;
 };
 
 export const checkWalletConnection = async () => {

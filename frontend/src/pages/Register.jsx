@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { connectWallet, signMessage, generateAuthMessage } from '../utils/web3Helpers'; 
+import { connectWallet, signMessage } from '../utils/web3Helpers';
 
 const Register = () => {
     const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +32,7 @@ const Register = () => {
 
         setIsLoading(true);
         try {
-            const response = await fetch('http://localhost:5000/api/register', {
+            const response = await fetch('http://localhost:8000/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
@@ -58,21 +58,13 @@ const Register = () => {
             // Step 1: Connect wallet and get address
             const address = await connectWallet();
             
-            // Step 2: Generate authentication message
-            const message = generateAuthMessage(address);
-            
-            // Step 3: Sign message (FREE - no gas fee)
-            const signedData = await signMessage(message);
-            
-            // Step 4: Link wallet to account
-            const response = await fetch('http://localhost:5000/api/connect-wallet', {
+            // Step 2: Link wallet to account (No signature needed for linking)
+            const response = await fetch('http://localhost:8000/api/connect-wallet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: registeredUser.id,
-                    wallet_address: signedData.address,
-                    signature: signedData.signature,
-                    message: signedData.message
+                    wallet_address: address
                 })
             });
 
@@ -82,7 +74,7 @@ const Register = () => {
             }
 
             // Success! Save session and go home
-            localStorage.setItem('user_wallet', signedData.address);
+            localStorage.setItem('user_wallet', address);
             localStorage.setItem('user_profile', JSON.stringify(data.user));
 
             navigate('/home');
