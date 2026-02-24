@@ -74,6 +74,42 @@ const toggleDoctorApply = () => {
   }));
 };
 
+const handleSubmitDoctorRequest = async () => {
+  if (!doctorRequest.nomorSTR || !doctorRequest.institusi || !doctorRequest.dokumen) {
+    alert("Harap lengkapi Formulir (Nomor STR, Institusi, dan Upload Dokumen).");
+    return;
+  }
+
+  const walletAddress = localStorage.getItem("user_wallet");
+  if (!walletAddress) {
+    alert("Silakan login dengan wallet Anda terlebih dahulu.");
+    return;
+  }
+
+  const formPayload = new FormData();
+  formPayload.append("wallet_address", walletAddress);
+  formPayload.append("nomor_str", doctorRequest.nomorSTR);
+  formPayload.append("nama_instansi", doctorRequest.institusi);
+  formPayload.append("file_dokumen", doctorRequest.dokumen);
+
+  try {
+    const response = await fetch("http://localhost:8000/api/request_doctor", {
+      method: "POST",
+      body: formPayload, // menggunakan FormData, header Content-Type otomatis diatur browser menjadi multipart/form-data
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || data.error || "Gagal mengajukan permintaan.");
+    }
+
+    alert("Berhasil: " + data.message);
+    setDoctorRequest({ isApplying: false, nomorSTR: "", institusi: "", dokumen: null });
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+};
+
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -174,6 +210,30 @@ const toggleDoctorApply = () => {
               </div>
             </div>
 
+            {formData.role === 'Doctor' && (
+              <div className="mt-12 p-6 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                  🩺
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-blue-800">Dokter Terverifikasi</h4>
+                  <p className="text-sm text-blue-600 mt-1">Akun ini telah melalui validasi Admin dan memiliki wewenang untuk mencatat rekam medis.</p>
+                </div>
+              </div>
+            )}
+            
+            {formData.role === 'Pending_Doctor' && (
+              <div className="mt-12 p-6 bg-yellow-50 border border-yellow-200 rounded-2xl flex items-center gap-4">
+                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600">
+                  ⏳
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-yellow-800">Menunggu Verifikasi Admin</h4>
+                  <p className="text-sm text-yellow-600 mt-1">Dokumen STR Anda sedang dalam antrean pengecekan. Mohon bersabar.</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-8 mt-20">
               <button
                 onClick={handleEdit}
@@ -238,14 +298,15 @@ const toggleDoctorApply = () => {
             <MultiSelectField label="Alergi Herbal" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
           </div>
 
-          <div className="mt-12 border-t border-primary-20">
-            <h3 className="mt-3 text-bold-20 text-primary-50 mb-2">
-              Ajukan Verifikasi Dokter
-            </h3>
+          {(!formData.role || formData.role === 'Patient') && (
+            <div className="mt-12 border-t border-primary-20">
+              <h3 className="mt-3 text-bold-20 text-primary-50 mb-2">
+                Ajukan Verifikasi Dokter
+              </h3>
 
-            <p className="text-regular-14 text-dark-30 mb-8">
-              Jika Anda adalah tenaga medis profesional, Anda dapat mengajukan verifikasi untuk mendapatkan akses sebagai dokter di platform ini.
-            </p>
+              <p className="text-regular-14 text-dark-30 mb-8">
+                Jika Anda adalah tenaga medis profesional, Anda dapat mengajukan verifikasi untuk mendapatkan akses sebagai dokter di platform ini.
+              </p>
 
             {!doctorRequest.isApplying ? (
               <button
@@ -264,20 +325,30 @@ const toggleDoctorApply = () => {
                     Upload Dokumen Pendukung (STR / SIP)
                   </label>
                   <label className="block">
-                    <div className="border-2 border-dashed border-primary-30 rounded-xl p-4 text-center cursor-pointer hover:bg-primary-10 transition">
-                      <p className="text-primary-40 font-medium">
-                        Klik untuk upload dokumen
-                      </p>
-                      <p className="text-xs text-dark-30 mt-1">
-                        PDF / JPG / PNG
-                      </p>
+                    <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${doctorRequest.dokumen ? 'border-green-500 bg-green-50' : 'border-primary-30 hover:bg-primary-10'}`}>
+                      {doctorRequest.dokumen ? (
+                        <p className="text-green-700 font-medium font-bold">
+                          ✓ File terpilih: {doctorRequest.dokumen.name}
+                        </p>
+                      ) : (
+                        <div>
+                          <p className="text-primary-40 font-medium">
+                            Klik untuk upload dokumen
+                          </p>
+                          <p className="text-xs text-dark-30 mt-1">
+                            PDF / JPG / PNG
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <input type="file" className="hidden" onChange={handleDoctorFile} />
+                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDoctorFile} />
                   </label>
                 </div>
 
                 <div className="flex gap-4">
-                  <button className="bg-primary-40 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-primary-50 transition-all duration-200 shadow-sm hshadow-md active:scale-[0.97]">
+                  <button 
+                    onClick={handleSubmitDoctorRequest}
+                    className="bg-primary-40 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-primary-50 transition-all duration-200 shadow-sm hshadow-md active:scale-[0.97]">
                     Kirim Permintaan
                   </button>
 
@@ -289,8 +360,9 @@ const toggleDoctorApply = () => {
                   </button>
                 </div>
               </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end mt-16">
             <button onClick={handleSimpan} className="bg-primary-40 text-white px-12 py-5 rounded-2xl font-semibold hover:bg-primary-50 transition text-regular-16">

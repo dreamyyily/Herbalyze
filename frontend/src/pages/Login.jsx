@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { connectWallet, signMessage, generateAuthMessage } from '../utils/web3Helpers'; 
+import { connectWallet, signMessage, requestNonce } from '../utils/web3Helpers'; 
 
 const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +17,7 @@ const Login = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            const response = await fetch('http://localhost:5000/api/login', {
+            const response = await fetch('http://localhost:8000/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(loginData)
@@ -26,13 +26,16 @@ const Login = () => {
             if (!response.ok) throw new Error(data.error || 'Login failed');
             
             // Save basic session
+            localStorage.setItem('user_profile', JSON.stringify(data.user));
             if (data.user.wallet_address) {
                 localStorage.setItem('user_wallet', data.user.wallet_address);
-            } else {
-                 // Use placeholder or just user profile if no wallet yet
-                 localStorage.setItem('user_profile', JSON.stringify(data.user));
             }
-            navigate('/home');
+            
+            if (data.user.role === 'Admin') {
+                navigate('/admin');
+            } else {
+                navigate('/home');
+            }
 
         } catch (error) {
             alert(error.message);
@@ -48,20 +51,19 @@ const Login = () => {
             // Step 1: Connect wallet and get address
             const address = await connectWallet();
             
-            // Step 2: Generate authentication message
-            const message = generateAuthMessage(address);
+            // Step 2: GET NONCE FROM BACKEND !!
+            const nonce = await requestNonce(address);
             
             // Step 3: Sign message (FREE - no gas fee, just signature)
-            const signedData = await signMessage(message);
+            const signedData = await signMessage(nonce);
             
             // Step 4: Send to backend for verification
-            const response = await fetch('http://localhost:5000/api/login-wallet', {
+            const response = await fetch('http://localhost:8000/api/verify_signature', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     wallet_address: signedData.address,
-                    signature: signedData.signature,
-                    message: signedData.message
+                    signature: signedData.signature
                 })
             });
 
