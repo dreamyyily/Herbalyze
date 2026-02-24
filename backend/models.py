@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Text, JSON, Boolean, DateTime
 from datetime import datetime
 from db import Base
 
@@ -55,31 +55,27 @@ class HerbalSymptom(Base):
 
 class HerbalSpecialCondition(Base):
     __tablename__ = 'herbal_special_conditions'
-   index = db.Column(db.Integer, primary_key=True)
-    herbal_name = db.Column(db.String(255))
-    latin_name = db.Column(db.String(255))
-    special_condition = db.Column(db.String(255))  # hamil, menyusui, anak di bawah 5 tahun, dll
-    description = db.Column(db.Text)  # deskripsi efek
-    reference = db.Column(db.Text)  # referensi
+    index = Column(Integer, primary_key=True)
+    herbal_name = Column(String(255))
+    latin_name = Column(String(255))
+    special_condition = Column(String(255)) 
+    description = Column(Text) 
+    reference = Column(Text) 
 
-class SearchHistory(db.Model):
+class SearchHistory(Base):  # <--- Ganti db.Model menjadi Base
     __tablename__ = 'search_history'
 
-    id = db.Column(db.Integer, primary_key=True)
-    # index=True akan otomatis membuatkan Index agar pencarian data sangat cepat!
-    wallet_address = db.Column(db.String(255), nullable=False, index=True) 
-    
-    # db.JSON sangat cocok untuk menyimpan format list/array dari Frontend
-    diagnoses = db.Column(db.JSON, default=list)
-    symptoms = db.Column(db.JSON, default=list)
-    special_conditions = db.Column(db.JSON, default=list)
-    chemical_drugs = db.Column(db.JSON, default=list)
-    
-    # Menyimpan hasil akhir (Rekomendasi AI)
-    recommendations = db.Column(db.JSON, nullable=True)
+    id = Column(Integer, primary_key=True)
+    wallet_address = Column(String(255), nullable=False, index=True)
+
+    # Gunakan Column dan JSON secara langsung
+    diagnoses = Column(JSON, default=list)
+    symptoms = Column(JSON, default=list)
+    special_conditions = Column(JSON, default=list)
+    chemical_drugs = Column(JSON, default=list)
+    recommendations = Column(JSON, nullable=True)
     
     # Otomatis mencatat waktu saat riwayat disimpan
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    created_at = Column(DateTime, default=datetime.utcnow)
     def __repr__(self):
         return f"<SearchHistory {self.wallet_address} - {self.created_at}>"

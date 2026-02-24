@@ -1,5 +1,5 @@
-import json  # <--- DITAMBAHKAN: Untuk memproses data JSON sebelum masuk database
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Request, HTTPException
+import json
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -11,9 +11,9 @@ from eth_account.messages import encode_defunct
 import secrets
 from typing import Optional
 from fastapi.responses import JSONResponse
-from fastapi import File, UploadFile, Form
 import os
 import shutil
+import traceback
 
 from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition
@@ -41,7 +41,6 @@ app.add_middleware(
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Mount Uploads Directory
-import os
 os.makedirs("uploads/str_documents", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
@@ -72,6 +71,9 @@ class ConnectWalletRequest(BaseModel):
 class Web3AuthRequest(BaseModel):
     wallet_address: str
     signature: Optional[str] = None
+
+class ApproveDoctorRequest(BaseModel):
+    wallet_address: str
 
 # ======================== ROUTES ========================
 
@@ -211,19 +213,14 @@ async def request_doctor(
 @app.get("/api/admin/pending_doctors")
 def get_pending_doctors(db: Session = Depends(get_db)):
     users = db.query(User).filter(User.role == "Pending_Doctor").all()
-    # Path dokumen perlu disesuaikan supaya bisa diakses di Frontend
     result = []
     for u in users:
         d = u.to_dict()
         d["nomor_str"] = u.nomor_str
         d["nama_instansi"] = u.nama_instansi
-        # buat full URL relative untuk frontend file pdf
         d["dokumen_url"] = f"http://localhost:8000/{u.dokumen_str_path.replace('\\', '/')}" if u.dokumen_str_path else None
         result.append(d)
     return result
-
-class ApproveDoctorRequest(BaseModel):
-    wallet_address: str
 
 @app.post("/api/admin/approve_doctor")
 def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
@@ -235,8 +232,6 @@ def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
     if user.role != "Pending_Doctor":
         raise HTTPException(status_code=400, detail="User is not a Pending Doctor")
     
-    # Secara teknis karena ini di blockchain, ini dipanggil SETELAH smart contract sukses.
-    # Jika sistemnya full terdesentralisasi off-chain sinkron, ini jadi callback.
     user.role = "Doctor"
     db.commit()
     db.refresh(user)
@@ -313,186 +308,115 @@ def get_herbs(db: Session = Depends(get_db)):
     return sorted(filtered)
 
 # =========================================================
-# FUNGSI REKOMENDASI & PENCATATAN RIWAYAT
+# FUNGSI REKOMENDASI & PENCATATAN RIWAYAT (VERSI FIX)
 # =========================================================
 @app.post("/api/recommend")
 async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
         
-        # Mengambil identitas & input pasien
-        wallet_addr = data.get('wallet_address', 'guest_user') # <--- DITAMBAHKAN: Tangkap Wallet
+        wallet_addr = data.get('wallet_address', 'guest_user')
         sel_diag = data.get('diagnosis', [])
         sel_symp = data.get('gejala', [])
         raw_cond = data.get('kondisi', [])
-        obat_kimia = data.get('obat_kimia', [])                # <--- DITAMBAHKAN: Tangkap Obat Kimia
+        obat_kimia = data.get('obat_kimia', [])
 
-        # ---------------------------------------------------------
-        # KAMUS PENERJEMAH (RULE-BASED MAPPING)
-        # ---------------------------------------------------------
+        # 1. Kamus Penerjemah Kondisi
         condition_mapping = {
             "Ibu hamil": "hamil",
             "Ibu menyusui": "menyusui",
             "Anak di bawah lima tahun": "anak di bawah 5 tahun"
         }
+        sel_cond = [condition_mapping.get(c, c) for c in raw_cond if c != "Tidak ada"]
 
-        sel_cond = []
-        for c in raw_cond:
-            if c in condition_mapping:
-                sel_cond.append(condition_mapping[c])
-            elif c != "Tidak ada":
-                sel_cond.append(c)
-        # ---------------------------------------------------------
-
-        # Helper 1: Saring Herbal yang Dilarang
+        # 2. Helper Keamanan (Gunakan Session db.execute)
         def get_safe_herbs(herb_names, conditions):
-            if not herb_names: return []
-            if not conditions: return list(herb_names)
-            
+            if not herb_names or not conditions: return list(herb_names)
             result = db.execute(text("""
                 SELECT herbal_name FROM herbal_special_conditions 
                 WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
             """), {"names": list(herb_names), "conds": list(conditions)}).fetchall()
-            
-            unsafe = {row[0] for row in result if row[0]}
-            
+            unsafe = {row[0] for row in result}
             return [h for h in herb_names if h not in unsafe]
 
-        # Helper 2: Ambil Detail Lengkap dengan UNION
+        # 3. Helper Detail
         def get_details(herb_names):
             if not herb_names: return []
             result = db.execute(text("""
                 SELECT herbal_name, latin_name, image_url, preparation, part_used, part_image_url, source_label, source
-                FROM herbal_diagnoses WHERE herbal_name = ANY(:names1)
+                FROM herbal_diagnoses WHERE herbal_name = ANY(:names)
                 UNION
                 SELECT herbal_name, latin_name, image_url, preparation, part_used, part_image_url, source_label, source
-                FROM herbal_symptoms WHERE herbal_name = ANY(:names2)
-            """), {"names1": list(herb_names), "names2": list(herb_names)}).fetchall()
+                FROM herbal_symptoms WHERE herbal_name = ANY(:names)
+            """), {"names": list(herb_names)}).fetchall()
             
-            res = []
-            seen = set()
+            res, seen = [], set()
             for r in result:
-                h_name = r[0]
-                if h_name not in seen:
+                if r[0] not in seen:
                     res.append({
-                        "name": h_name, "latin": r[1], "image": r[2], 
-                        "preparation": r[3], "part": r[4], "part_image": r[5], 
-                        "source_label": r[6], "source_link": r[7]
+                        "name": r[0], "latin": r[1], "image": r[2], "preparation": r[3],
+                        "part": r[4], "part_image": r[5], "source_label": r[6], "source_link": r[7]
                     })
-                    seen.add(h_name)
+                    seen.add(r[0])
             return res
 
+        # 4. Proses Rekomendasi
         grouped_results = []
-
         all_diags = db.execute(text("SELECT diagnosis, herbal_name FROM herbal_diagnoses")).fetchall()
         all_symps = db.execute(text("SELECT symptom, herbal_name FROM herbal_symptoms")).fetchall()
 
-        # PROSES DIAGNOSIS
         for d in sel_diag:
-            found = {r[1] for r in all_diags if r[0] and r[0].strip() == d and r[1]}
+            found = {r[1] for r in all_diags if r[0] and r[0].strip() == d}
             safe = get_safe_herbs(found, sel_cond)
             if safe:
                 details = get_details(safe)
-                if details:
-                    grouped_results.append({
-                        "group_type": "Diagnosis",
-                        "group_name": d,
-                        "herbs": details
-                    })
+                if details: grouped_results.append({"group_type": "Diagnosis", "group_name": d, "herbs": details})
 
-        # PROSES GEJALA
         for s in sel_symp:
-            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s and r[1]}
+            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s}
             safe = get_safe_herbs(found, sel_cond)
             if safe:
                 details = get_details(safe)
-                if details:
-                    grouped_results.append({
-                        "group_type": "Gejala",
-                        "group_name": s,
-                        "herbs": details
-                    })
+                if details: grouped_results.append({"group_type": "Gejala", "group_name": s, "herbs": details})
 
-
-        # ---------------------------------------------------------
-        # PENCATATAN RIWAYAT (LOGGING) KE TABEL search_history
-        # ---------------------------------------------------------
-      # PROSES GEJALA
-        for s in sel_symp:
-            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s and r[1]}
-            # ... (kode lainnya) ...
-
-        # ---------------------------------------------------------
-        # PENCATATAN RIWAYAT (LOGGING) KE TABEL search_history
-        # ---------------------------------------------------------
-        if grouped_results:  # <--- BARIS INI HARUS SEJAJAR DENGAN 'for' DI ATASNYA
+        # 5. Pencatatan Riwayat (Gunakan db.execute agar tidak bentrok dengan model)
+        if grouped_results:
             try:
-                cur.execute("""
+                db.execute(text("""
                     INSERT INTO search_history 
                     (wallet_address, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                """, (
-                    wallet_addr,
-                    json.dumps(sel_diag),
-                    json.dumps(sel_symp),
-                    json.dumps(raw_cond),
-                    json.dumps(obat_kimia),
-                    json.dumps(grouped_results)
-                ))
-                conn.commit()
-                print(f"✅ Riwayat berhasil disimpan untuk: {wallet_addr}")
+                    VALUES (:wallet, :diag, :symp, :cond, :drug, :res, NOW())
+                """), {
+                    "wallet": wallet_addr.lower(),
+                    "diag": json.dumps(sel_diag),
+                    "symp": json.dumps(sel_symp),
+                    "cond": json.dumps(raw_cond),
+                    "drug": json.dumps(obat_kimia),
+                    "res": json.dumps(grouped_results)
+                })
+                db.commit()
+                print(f"✅ Riwayat disimpan: {wallet_addr}")
             except Exception as e:
-                print(f"⚠️ Gagal menyimpan riwayat: {e}")
-                conn.rollback() 
-        # ---------------------------------------------------------
-        
-        cur.close()
-        conn.close()
+                db.rollback()
+                print(f"⚠️ Gagal simpan riwayat: {e}")
 
         return grouped_results
-
     except Exception as e:
-        import traceback
         traceback.print_exc()
-        return {"error": str(e)}
-
         raise HTTPException(status_code=500, detail=str(e))
 
-# =========================================================
-# ENDPOINT BARU: MENGAMBIL RIWAYAT BERDASARKAN WALLET
-# =========================================================
 @app.get("/api/history/{wallet_address}")
-def get_user_history(wallet_address: str):
+def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
     try:
-        conn = get_connection()
-        cur = conn.cursor()
-        
-        # Mengambil riwayat terbaru di atas (ORDER BY created_at DESC)
-        cur.execute("""
+        result = db.execute(text("""
             SELECT id, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at
-            FROM search_history
-            WHERE wallet_address = %s
-            ORDER BY created_at DESC
-        """, (wallet_address,))
+            FROM search_history WHERE wallet_address = :wallet ORDER BY created_at DESC
+        """), {"wallet": wallet_address.lower()}).fetchall()
         
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        history_list = []
-        for r in rows:
-            history_list.append({
-                "id": r[0],
-                "diagnoses": r[1],
-                "symptoms": r[2],
-                "special_conditions": r[3],
-                "chemical_drugs": r[4],
-                "recommendations": r[5],
-                "created_at": r[6].isoformat() if r[6] else None # Cek dulu apakah tanggalnya ada            })
-            }) #
-        return history_list
-        
+        return [{
+            "id": r[0], "diagnoses": r[1], "symptoms": r[2], "special_conditions": r[3],
+            "chemical_drugs": r[4], "recommendations": r[5],
+            "created_at": r[6].isoformat() if r[6] else None
+        } for r in result]
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil riwayat: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
