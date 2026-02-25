@@ -17,8 +17,8 @@ import traceback
 
 from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition
+from fastapi.encoders import jsonable_encoder
 
-# Buat tabel otomatis jika belum ada
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -40,7 +40,6 @@ app.add_middleware(
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Mount Uploads Directory
 os.makedirs("uploads/str_documents", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
@@ -53,7 +52,6 @@ def get_password_hash(password):
 def generate_random_nonce():
     return f"Herbalyze Authentication\n\nPlease sign this message to authenticate with your wallet.\n\nSecret Nonce: {secrets.token_hex(16)}"
 
-# ======================== SCHEMA ========================
 
 class RegisterRequest(BaseModel):
     name: str
@@ -75,13 +73,10 @@ class Web3AuthRequest(BaseModel):
 class ApproveDoctorRequest(BaseModel):
     wallet_address: str
 
-# ======================== ROUTES ========================
-
 @app.get("/")
 def home():
     return {"message": "Welcome to Herbalyze FastAPI System RMP"}
 
-# AUTH: Email Register
 @app.post("/api/register")
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == req.email).first():
@@ -92,7 +87,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         name=req.name, 
         email=req.email, 
         password_hash=hashed_pw,
-        role='Patient' # Default berstatus Patient
+        role='Patient'
     )
     db.add(new_user)
     db.commit()
@@ -100,7 +95,6 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     
     return {"message": "Registration successful", "user": new_user.to_dict()}
 
-# AUTH: Email Login
 @app.post("/api/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == req.email).first()
@@ -109,7 +103,6 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     
     return {"message": "Login successful", "user": user.to_dict()}
 
-# AUTH: Connect Wallet to Account
 @app.post("/api/connect-wallet")
 def connect_wallet(req: ConnectWalletRequest, db: Session = Depends(get_db)):
     wallet_addr = req.wallet_address.lower()
@@ -129,7 +122,6 @@ def connect_wallet(req: ConnectWalletRequest, db: Session = Depends(get_db)):
 
     return {"message": "Wallet linked successfully", "user": user.to_dict()}
 
-# WEB3 AUTH: GENERATE NONCE
 @app.post("/api/generate_nonce")
 def generate_nonce(req: Web3AuthRequest, db: Session = Depends(get_db)):
     wallet_address = req.wallet_address.lower()
@@ -146,7 +138,6 @@ def generate_nonce(req: Web3AuthRequest, db: Session = Depends(get_db)):
 
     return {"message": "Berhasil mengambil nonce.", "nonce": new_nonce}
 
-# WEB3 AUTH: VERIFY SIGNATURE
 @app.post("/api/verify_signature")
 def verify_signature(req: Web3AuthRequest, db: Session = Depends(get_db)):
     wallet_address = req.wallet_address.lower()
@@ -165,7 +156,6 @@ def verify_signature(req: Web3AuthRequest, db: Session = Depends(get_db)):
         recovered_address = Account.recover_message(message_hash, signature=signature)
         
         if recovered_address.lower() == wallet_address:
-            # CEGAH REPLAY ATTACK
             user.nonce = None 
             db.commit()
             return {"message": "Login Sukses! Signature Anda Valid.", "user": user.to_dict()}
@@ -175,7 +165,6 @@ def verify_signature(req: Web3AuthRequest, db: Session = Depends(get_db)):
         print(f"Error kriptografi backend: {e}")
         raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat memverifikasi signature.")
 
-# AUTH: REQUEST DOCTOR ROLE
 @app.post("/api/request_doctor")
 async def request_doctor(
     wallet_address: str = Form(...),
@@ -238,7 +227,6 @@ def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
 
     return {"message": "User berhasil diverifikasi menjadi Doctor di database.", "user": user.to_dict()}
 
-# ======================== DATA HERBALS ========================
 
 @app.get("/api/diagnoses")
 def get_diagnoses(db: Session = Depends(get_db)):
@@ -307,9 +295,9 @@ def get_herbs(db: Session = Depends(get_db)):
 
     return sorted(filtered)
 
-# =========================================================
-# FUNGSI REKOMENDASI & PENCATATAN RIWAYAT (VERSI FIX)
-# =========================================================
+
+# FUNGSI REKOMENDASI & PENCATATAN RIWAYAT 
+
 @app.post("/api/recommend")
 async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
     try:
@@ -321,7 +309,6 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         raw_cond = data.get('kondisi', [])
         obat_kimia = data.get('obat_kimia', [])
 
-        # 1. Kamus Penerjemah Kondisi
         condition_mapping = {
             "Ibu hamil": "hamil",
             "Ibu menyusui": "menyusui",
@@ -329,7 +316,6 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         }
         sel_cond = [condition_mapping.get(c, c) for c in raw_cond if c != "Tidak ada"]
 
-        # 2. Helper Keamanan (Gunakan Session db.execute)
         def get_safe_herbs(herb_names, conditions):
             if not herb_names or not conditions: return list(herb_names)
             result = db.execute(text("""
@@ -339,7 +325,6 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
             unsafe = {row[0] for row in result}
             return [h for h in herb_names if h not in unsafe]
 
-        # 3. Helper Detail
         def get_details(herb_names):
             if not herb_names: return []
             result = db.execute(text("""
@@ -360,7 +345,6 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
                     seen.add(r[0])
             return res
 
-        # 4. Proses Rekomendasi
         grouped_results = []
         all_diags = db.execute(text("SELECT diagnosis, herbal_name FROM herbal_diagnoses")).fetchall()
         all_symps = db.execute(text("SELECT symptom, herbal_name FROM herbal_symptoms")).fetchall()
@@ -379,7 +363,6 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
                 details = get_details(safe)
                 if details: grouped_results.append({"group_type": "Gejala", "group_name": s, "herbs": details})
 
-        # 5. Pencatatan Riwayat (Gunakan db.execute agar tidak bentrok dengan model)
         if grouped_results:
             try:
                 db.execute(text("""
@@ -420,3 +403,15 @@ def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
         } for r in result]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+# data profile
+@app.get("/api/profile/{wallet}")
+def get_profile(wallet: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        func.lower(User.wallet_address) == wallet.lower()
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return jsonable_encoder(user)

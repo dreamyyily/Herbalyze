@@ -43,16 +43,29 @@ export default function DataPersonal() {
   const [herbsOptions, setHerbsOptions] = useState([]);
 
   useEffect(() => {
-  const profile = loadProfile();
-  if (profile) {
-    setFormData(profile);
-    setPhotoPreview(profile.photo);
+  const wallet = localStorage.getItem("user_wallet");
+
+  if (!wallet) {
+    console.error("Wallet tidak ditemukan");
+    return;
   }
 
+  fetch(`http://127.0.0.1:8000/api/profile/${wallet}`)
+    .then((res) => res.json())
+    .then((data) => {
+      setFormData((prev) => ({
+        ...prev,
+        nama: data.name || "",
+        email: data.email || "",
+        role: data.role,
+      }));
+    })
+    .catch((err) => console.error("Gagal load profile:", err));
+
   fetch("http://127.0.0.1:8000/api/herbs")
-  .then((res) => res.json())
-  .then((data) => setHerbsOptions(data))
-  .catch((err) => console.error("Gagal load herbs:", err));
+    .then((res) => res.json())
+    .then((data) => setHerbsOptions(data))
+    .catch((err) => console.error("Gagal load herbs:", err));
 }, []);
 
   const handleDoctorChange = (e) => {
@@ -292,7 +305,7 @@ const handleSubmitDoctorRequest = async () => {
 
             <InputField label="Tempat Lahir" name="tempatLahir" placeholder="Jakarta" value={formData.tempatLahir} onChange={handleInputChange} />
             <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" value={formData.tanggalLahir} onChange={handleInputChange} required error={errors.tanggalLahir} />
-            <InputField label="Email" name="email" type="email" placeholder="mail@example.com" value={formData.email} onChange={handleInputChange} required error={errors.email} />
+            <InputField label="Email" name="email" type="email" placeholder="mail@example.com" value={formData.email} disabled required error={errors.email} />
             <InputField label="Nomor HP" name="nomorHp" placeholder="08xx" value={formData.nomorHp} onChange={handleInputChange} />
             <SelectField label="Jenis Kelamin" options={genderOptions} value={formData.jenisKelamin} onChange={(value) => handleSelectChange("jenisKelamin", value)} />
             <MultiSelectField label="Alergi Herbal" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
