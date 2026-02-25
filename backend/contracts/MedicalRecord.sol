@@ -3,9 +3,10 @@ pragma solidity ^0.8.0;
 
 contract MedicalRecordSystem {
     
-    // Struktur data untuk Rekam Medis (hanya menyimpan metadata & hash IPFS)
+    // Struktur data untuk Rekam Medis (langsung menyimpan data terenkripsi)
     struct MedicalRecord {
-        string ipfsCID;      // Hash CID dari IPFS yang menyimpan file rekam medis JSON/PDF
+        string encryptedData; // Berisi string JSON cipherText yang sudah dienkripsi
+        address patientAddress; // Alamat wallet pasien pemilik catatan
         address uploader;    // Alamat wallet pasien/dokter yang mengunggah
         uint256 timestamp;   // Waktu pengunggahan tercatat di blockchain
     }
@@ -18,11 +19,11 @@ contract MedicalRecordSystem {
     mapping(address => bool) public isAdmin;
     mapping(address => bool) public isApprovedUser; // Pasien/Dokter yang sudah di-ACC oleh Admin
 
-    // Events (Untuk memudahkan pelacakan di frontend tanpa membaca seluruh block)
+    // Events (Untuk memudahkan pelacakan di frontend)
     event AdminAdded(address indexed newAdmin);
     event UserApproved(address indexed user);
     event UserRevoked(address indexed user);
-    event MedicalRecordAdded(uint256 indexed recordId, address indexed uploader, string ipfsCID, uint256 timestamp);
+    event MedicalRecordAdded(uint256 indexed recordId, address indexed patientAddress, address indexed uploader, uint256 timestamp);
 
     // Saat contract di-deploy, pendeploy akan otomatis menjadi Admin utama
     constructor() {
@@ -64,23 +65,24 @@ contract MedicalRecordSystem {
 
     // --- Fungsi Utama Rekam Medis ---
 
-    // Fungsi untuk mengunggah Rekam Medis (Hanya bisa dipanggil akun yg sudah di-ACC)
-    function addMedicalRecord(string memory _ipfsCID) public onlyApprovedUser {
+    // Fungsi untuk mengunggah Rekam Medis terenkripsi (Hanya bisa dipanggil akun yg sudah di-ACC)
+    function addMedicalRecord(address _patientAddress, string memory _encryptedData) public onlyApprovedUser {
         recordCount++;
         
         records[recordCount] = MedicalRecord({
-            ipfsCID: _ipfsCID,
+            encryptedData: _encryptedData,
+            patientAddress: _patientAddress,
             uploader: msg.sender,
             timestamp: block.timestamp
         });
 
-        emit MedicalRecordAdded(recordCount, msg.sender, _ipfsCID, block.timestamp);
+        emit MedicalRecordAdded(recordCount, _patientAddress, msg.sender, block.timestamp);
     }
 
     // Fungsi tambahan untuk mengambil spesifik record tanpa front-end harus manual looping mapping
-    function getMedicalRecord(uint256 _recordId) public view returns (string memory ipfsCID, address uploader, uint256 timestamp) {
+    function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp) {
         require(_recordId > 0 && _recordId <= recordCount, "Record tidak ditemukan.");
         MedicalRecord memory rec = records[_recordId];
-        return (rec.ipfsCID, rec.uploader, rec.timestamp);
+        return (rec.encryptedData, rec.patientAddress, rec.uploader, rec.timestamp);
     }
 }
