@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDownIcon, ChevronUpIcon, CheckIcon, MagnifyingGlassIcon } from "@heroicons/react/20/solid";
 
-export default function MultiSelectField({ label, options = [], required = false, value, onChange}) {
+export default function MultiSelectField({ label, options = [], required = false, value, onChange, error}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -73,15 +73,27 @@ export default function MultiSelectField({ label, options = [], required = false
     <div className="mb-8 relative" ref={wrapperRef}>
       {/* TRIGGER */}
       <div
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((prev) => !prev)}
         className={`relative w-full min-h-[56px] rounded-xl border bg-white px-4 py-3.5 cursor-pointer flex items-center justify-between transition-all duration-200
-          ${open 
-            ? 'border-primary-40 ring-4 ring-primary-10 shadow-sm' 
-            : 'border-light-40 hover:border-primary-20'}
+          ${
+            error
+              ? "border-danger-30"
+              : open
+              ? "border-primary-40 ring-2 ring-primary-10"
+              : "border-light-40 hover:border-primary-20"
+          }
         `}
       >
-        <label className={`absolute left-3 -top-2.5 px-1.5 bg-white text-xs font-semibold transition-colors z-10
-            ${open ? 'text-primary-40' : 'text-dark-30'}`}>
+        <label
+          className={`absolute left-3 -top-2.5 px-1.5 bg-white text-sm font-medium transition-colors z-10
+            ${
+              error
+                ? "text-danger-30"
+                : open
+                ? "text-primary-40"
+                : "text-dark-30"
+            }`}
+        >
           {label}
           {required && <span className="text-danger-30 ml-0.5">*</span>}
         </label>
@@ -99,6 +111,12 @@ export default function MultiSelectField({ label, options = [], required = false
         </div>
       </div>
 
+      {error && (
+        <p className="mt-1 text-sm text-danger-30">
+          {error}
+        </p>
+      )}
+
       {/* DROPDOWN */}
       {open && (
         <div className="absolute z-50 mt-2 w-full bg-white rounded-xl shadow-lg ring-1 ring-black/5 border border-light-30 overflow-hidden flex flex-col">
@@ -110,6 +128,7 @@ export default function MultiSelectField({ label, options = [], required = false
               <input
                 ref={searchInputRef}
                 type="text"
+                onClick={(e) => e.stopPropagation()}
                 className="w-full bg-light-20 border border-transparent focus:border-primary-40 focus:bg-white focus:ring-1 focus:ring-primary-40 rounded-lg py-2 pl-9 pr-3 text-sm text-dark-50 transition-all outline-none placeholder:text-dark-30"
                 placeholder="Ketik untuk mencari..."
                 value={query}

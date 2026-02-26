@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { loadProfile } from "../../utils/storage";
 import MainLayout from "../../layouts/MainLayout";
 import SelectField from "../../components/SelectField";
 import MultiSelectField from "../../components/MultiSelectField";
@@ -18,6 +20,9 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const navigate = useNavigate();
+  const [showProfileWarning, setShowProfileWarning] = useState(false);
   
   const resultRef = useRef(null);
 
@@ -27,6 +32,19 @@ export default function Home() {
   useEffect(() => {
     fetchDiagnoses();
     fetchSymptoms();
+
+    const profile = loadProfile();
+
+    const isProfileIncomplete =
+      !profile ||
+      !profile.nik ||
+      !profile.nama ||
+      !profile.tanggalLahir ||
+      !profile.alergiHerbal?.length;
+
+    if (isProfileIncomplete) {
+      setShowProfileWarning(true);
+    }
   }, []);
 
   const fetchDiagnoses = async () => {
@@ -71,6 +89,11 @@ export default function Home() {
   };
 
   const handleSearch = async () => {
+    if (showProfileWarning) {
+      alert("Silakan lengkapi Data Personal terlebih dahulu.");
+      navigate("/data-personal");
+      return;
+    }
     setErrorMessage(null); 
 
     if (selectedDiagnoses.length === 0 && selectedSymptoms.length === 0) {
@@ -142,6 +165,34 @@ export default function Home() {
       <div className="max-w-6xl mx-auto pt-10 md:pt-14 px-4 pb-24">
         
         <HeroSection />
+
+        {showProfileWarning && (
+          <div className="mb-6">
+            <div className="flex items-start gap-4 p-5 rounded-xl border border-warning-30 bg-warning-10 shadow-sm">
+              
+              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-warning-40 text-light-10 text-regular-16">
+                ⚕️
+              </div>
+
+              <div className="flex-1">
+                <h4 className="text-bold-16 text-dark-50 mb-1">
+                  Data Personal Belum Lengkap
+                </h4>
+
+                <p className="text-regular-14 text-dark-40">
+                  Lengkapi data personal Anda agar sistem dapat memberikan rekomendasi herbal yang aman dan akurat.
+                </p>
+
+                <button
+                  onClick={() => navigate("/data-personal")}
+                  className="mt-3 px-4 py-2 rounded-lg bg-warning-40 text-light-10 text-regular-14 hover:bg-warning-50 transition"
+                >
+                  Isi Data Personal
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-[32px] shadow-[0_20px_50px_rgba(37,99,235,0.07)] border border-primary-10 overflow-hidden relative backdrop-blur-sm">
           <div className="bg-primary-10/40 border-b border-light-40 px-8 py-6 md:px-10 md:py-8 flex items-center justify-between">

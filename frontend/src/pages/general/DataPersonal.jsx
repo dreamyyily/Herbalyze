@@ -40,6 +40,17 @@ export default function DataPersonal() {
   alergiHerbal: "Alergi Herbal",
   };
 
+  const isPersonalDataComplete = (showError = false) => {
+  const newErrors = validateRequired(formData, requiredFields);
+
+  if (Object.keys(newErrors).length > 0) {
+    if (showError) setErrors(newErrors);
+    return false;
+  }
+
+  return true;
+};
+
   const [herbsOptions, setHerbsOptions] = useState([]);
 
   useEffect(() => {
@@ -64,7 +75,10 @@ export default function DataPersonal() {
 
   fetch("http://127.0.0.1:8000/api/herbs")
     .then((res) => res.json())
-    .then((data) => setHerbsOptions(data))
+    .then((data) => {
+      const optionsWithNone = ["Tidak Ada", ...data];
+      setHerbsOptions(optionsWithNone);
+    })
     .catch((err) => console.error("Gagal load herbs:", err));
 }, []);
 
@@ -81,6 +95,11 @@ const handleDoctorFile = (e) => {
 };
 
 const toggleDoctorApply = () => {
+  if (!isPersonalDataComplete(true)) {
+    alert("Lengkapi terlebih dahulu data personal yang wajib diisi sebelum mengajukan verifikasi dokter.");
+    return;
+  }
+
   setDoctorRequest((prev) => ({
     ...prev,
     isApplying: !prev.isApplying,
@@ -108,7 +127,7 @@ const handleSubmitDoctorRequest = async () => {
   try {
     const response = await fetch("http://localhost:8000/api/request_doctor", {
       method: "POST",
-      body: formPayload, // menggunakan FormData, header Content-Type otomatis diatur browser menjadi multipart/form-data
+      body: formPayload, 
     });
 
     const data = await response.json();
@@ -147,12 +166,21 @@ const handleSubmitDoctorRequest = async () => {
   };
 
   const handleSelectChange = (name, value) =>{
+    if (name === "alergiHerbal") {
+    if (value.includes("Tidak Ada")) {
+      value = ["Tidak Ada"];
+    }
+  }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: ""}));
   };
 
   const handleSimpan = () => {
   const newErrors = validateRequired(formData, requiredFields);
+  if (!formData.alergiHerbal || formData.alergiHerbal.length === 0) {
+    newErrors.alergiHerbal = "Pilih minimal satu (atau pilih 'Tidak Ada')";
+  }
 
   if (Object.keys(newErrors).length > 0) {
     setErrors(newErrors);
@@ -160,7 +188,8 @@ const handleSubmitDoctorRequest = async () => {
   }
 
   saveProfile(formData);
-  setIsEdit(false);
+  alert("Data berhasil disimpan!");
+  navigate("/");
 };
 
   const handleEdit = () => {
@@ -324,7 +353,12 @@ const handleSubmitDoctorRequest = async () => {
             {!doctorRequest.isApplying ? (
               <button
                 onClick={toggleDoctorApply}
-                className="px-8 py-3 rounded-2xl font-semibold border border-primary-40 text-primary-40 hover:bg-primary-40 hover:text-white transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+                className={`px-8 py-3 rounded-2xl font-semibold border transition-all duration-200 shadow-sm active:scale-[0.98]
+                ${
+                  isPersonalDataComplete()
+                    ? "border-primary-40 text-primary-40 hover:bg-primary-40 hover:text-white hover:shadow-md"
+                    : "border-light-40 text-light-50 cursor-not-allowed"
+                }`}
               >
                 Ajukan Verifikasi
               </button>
