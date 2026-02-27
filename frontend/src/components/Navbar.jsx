@@ -30,9 +30,15 @@ export default function Navbar() {
           </NavLink>
         )}
         
-        {role !== 'Admin' && (
+        {(role === 'Patient' || role === 'Doctor') && (
           <NavLink to="/catatan-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
             Catatan Dokter
+          </NavLink>
+        )}
+
+        {role === 'Doctor' && (
+          <NavLink to="/rekam-medis" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
+            Rekam Medis
           </NavLink>
         )}
         
@@ -51,11 +57,11 @@ export default function Navbar() {
 
       <div className="flex items-center gap-6">
           <div className="text-regular-16 text-dark-30 font-medium bg-gray-100 px-4 py-1.5 rounded-full">
-             {profile.name 
-               ? profile.name 
-               : localStorage.getItem('user_wallet') 
-                 ? localStorage.getItem('user_wallet').substring(0, 6) + '...' + localStorage.getItem('user_wallet').slice(-4) 
-                 : 'User'}
+            {profile.name 
+              ? profile.name 
+              : localStorage.getItem('user_wallet') 
+                ? localStorage.getItem('user_wallet').substring(0, 6) + '...' + localStorage.getItem('user_wallet').slice(-4) 
+                : 'User'}
           </div>
           <button 
             onClick={() => {

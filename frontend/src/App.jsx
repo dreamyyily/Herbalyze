@@ -1,9 +1,9 @@
-
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Home from "./pages/general/Home.jsx";
 import DataPersonal from "./pages/general/DataPersonal.jsx";
 import CatatanDokter from "./pages/patient/CatatanDokter.jsx";
+import RekamMedis from "./pages/doctor/RekamMedis.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
@@ -44,11 +44,22 @@ const AdminRoute = ({ children }) => {
     return children;
 };
 
-const DoctorRoute = ({ children }) => {
+const DoctorOnlyRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
     
-    if (profile.role !== 'Doctor' && profile.role !== 'Patient' && profile.role !== 'Pending_Doctor') {
+    if (profile.role !== 'Doctor') {
+        return <Navigate to="/home" state={{ from: location }} replace />;
+    }
+
+    return children;
+};
+
+const PatientDoctorRoute = ({ children }) => {
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const location = useLocation();
+    
+    if (profile.role !== 'Patient' && profile.role !== 'Doctor') {
         return <Navigate to="/home" state={{ from: location }} replace />;
     }
 
@@ -59,7 +70,6 @@ const AppContent = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Auto-Login Check (User Request: "Di App.jsx... detect wallet... redirect to home")
     useEffect(() => {
         const checkAutoLogin = async () => {
             if (location.pathname === '/') {
@@ -75,20 +85,17 @@ const AppContent = () => {
         checkAutoLogin();
     }, [location.pathname, navigate]);
 
-    // Account Change Listener
     useEffect(() => {
         listenToAccountChanges((newAccount) => {
             if (!newAccount) {
-                 // Disconnected
-                 localStorage.removeItem('user_wallet');
-                 localStorage.removeItem('user_profile');
-                 if (location.pathname !== '/') navigate('/'); 
+                localStorage.removeItem('user_wallet');
+                localStorage.removeItem('user_profile');
+                if (location.pathname !== '/') navigate('/'); 
             } else {
-                 // Changed Account -> Force Logout (Security: "hapus sesi dan paksa logout")
-                 console.log("Wallet changed, logging out security.");
-                 localStorage.removeItem('user_wallet');
-                 localStorage.removeItem('user_profile');
-                 navigate('/');
+                console.log("Wallet changed, logging out security.");
+                localStorage.removeItem('user_wallet');
+                localStorage.removeItem('user_profile');
+                navigate('/');
             }
         });
     }, [navigate, location.pathname]);
@@ -108,20 +115,23 @@ const AppContent = () => {
                     <DataPersonal />
                 </ProtectedRoute>
             } />
+
             <Route path="/catatan-dokter" element={
-                <DoctorRoute>
+                <PatientDoctorRoute>
                     <CatatanDokter />
-              </DoctorRoute>
+                </PatientDoctorRoute>
             } />
+
+            <Route path="/rekam-medis" element={
+                <DoctorOnlyRoute>
+                    <RekamMedis />
+                </DoctorOnlyRoute>
+            } />
+
             <Route path="/admin" element={
                 <AdminRoute>
                     <AdminDashboard />
                 </AdminRoute>
-            } />
-            <Route path="/riwayat" element={
-                <ProtectedRoute>
-                    <Riwayat />
-                </ProtectedRoute>
             } />
             <Route path="/riwayat" element={
                 <ProtectedRoute>
@@ -133,9 +143,9 @@ const AppContent = () => {
 };
 
 export default function App() {
-  return (
-    <BrowserRouter>
-        <AppContent />
-    </BrowserRouter>
-  );
+    return (
+        <BrowserRouter>
+            <AppContent />
+        </BrowserRouter>
+    );
 }

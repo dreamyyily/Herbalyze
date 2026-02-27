@@ -16,6 +16,13 @@ module.exports = {
           70: '#1E3A8A',
           80: '#1E293B',
         },
+        warning: {
+          10: '#FFEDC8',
+          20: '#FFD889',
+          30: '#FFC858',
+          40: '#FFB92C',
+          50: 'var(--color-warning-50)',
+        },
         dark: {
           10: '#F1F3F5',
           20: '#E2E4E7',
