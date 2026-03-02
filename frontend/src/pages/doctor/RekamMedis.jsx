@@ -17,6 +17,8 @@ export default function RekamMedis() {
 
   const [activeTab, setActiveTab] = useState("pasien");
 
+  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui", "Anak di bawah lima tahun"];
+
   const [consentedPatients, setConsentedPatients] = useState([]);
   const [patientProfiles, setPatientProfiles] = useState({});
   const [isFetchingPatients, setIsFetchingPatients] = useState(false);
@@ -246,7 +248,7 @@ export default function RekamMedis() {
                   <p className="text-gray-800">{selectedRecord.gejala || "-"}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-                  <p className="text-xs text-gray-400 mb-1 uppercase tracking-wide">Obat / Herbal</p>
+                  <p className="text-xs text-gray-400 mb-1 uppercase tracking-wide">Resep Obat</p>
                   <p className="font-semibold text-gray-800">{selectedRecord.obat || "-"}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
@@ -339,11 +341,12 @@ export default function RekamMedis() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Obat / Terapi Herbal <span className="text-red-500">*</span>
+                    Resep Obat <span className="text-red-500">*</span>
                   </label>
-                  <input type="text" name="obat" value={formData.obat} onChange={handleInputChange}
-                    placeholder="Contoh: Jahe Merah, Kunyit, Temulawak..."
-                    className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition" />
+                  <textarea type="text" name="obat" value={formData.obat} onChange={handleInputChange}
+                    placeholder="Contoh: Paracetamol 500mg, Amoxicillin 3x1, atau herbal sesuai resep dokter..."
+                    className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition"
+                  />
                 </div>
 
                 <div>
@@ -352,16 +355,15 @@ export default function RekamMedis() {
                   </label>
                   <div className="relative">
                     <select name="kondisiKhusus" value={formData.kondisiKhusus} onChange={handleInputChange}
-                      className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition appearance-none">
+                      className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition appearance-none"
+                    >
                       <option value="" disabled>Pilih Kondisi Khusus</option>
-                      <option value="Ibu Hamil">Ibu Hamil</option>
-                      <option value="Ibu Menyusui">Ibu Menyusui</option>
-                      <option value="Anak-Anak">Anak-Anak</option>
-                      <option value="Lansia">Lansia</option>
-                      <option value="Hipertensi">Hipertensi</option>
-                      <option value="Diabetes">Diabetes</option>
-                      <option value="Alergi Spesifik">Alergi Spesifik</option>
-                      <option value="Tidak Ada">Tidak Ada</option>
+
+                      {specialConditionOptions.map((option, index) => (
+                        <option key={index} value={option}>
+                          {option}
+                        </option>
+                      ))}
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-500">
                       <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
@@ -534,7 +536,7 @@ export default function RekamMedis() {
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Tanggal</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Wallet Pasien</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Diagnosis</th>
-                            <th className="text-left py-3 px-4 text-gray-400 font-medium">Obat / Herbal</th>
+                            <th className="text-left py-3 px-4 text-gray-400 font-medium">Resep Obat</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Kondisi</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Aksi</th>
                           </tr>
