@@ -70,20 +70,33 @@ contract MedicalRecordSystem {
         emit UserRevoked(_user);
     }
 
-    // Consent Function
-    // Pasien bebas memberikan izin ke dokter tanpa perlu approval admin
-    function grantConsent(address _doctor) public {
-        require(!patientConsent[msg.sender][_doctor], "Consent sudah diberikan sebelumnya.");
-        patientConsent[msg.sender][_doctor] = true;
-        patientDoctors[msg.sender].push(_doctor);
-        doctorPatients[_doctor].push(msg.sender);
-        emit ConsentGranted(msg.sender, _doctor);
+    // CONSENT
+    function grantConsent(address doctor) public {
+        require(!patientConsent[msg.sender][doctor], "Consent sudah diberikan");
+
+        patientConsent[msg.sender][doctor] = true;
+
+        // Hindari duplikat di array
+        bool exists = false;
+        for (uint i = 0; i < doctorPatients[doctor].length; i++) {
+            if (doctorPatients[doctor][i] == msg.sender) {
+                exists = true;
+                break;
+            }
+        }
+
+        if (!exists) {
+            doctorPatients[doctor].push(msg.sender);
+        }
+
+        emit ConsentGranted(msg.sender, doctor);
     }
 
-    // Pasien bebas mencabut izin dari dokter tanpa perlu approval admin
     function revokeConsent(address _doctor) public {
         require(patientConsent[msg.sender][_doctor], "Consent belum pernah diberikan.");
+
         patientConsent[msg.sender][_doctor] = false;
+
         emit ConsentRevoked(msg.sender, _doctor);
     }
 

@@ -42,7 +42,8 @@ export default function RekamMedis() {
     try {
       const contract = getReadOnlyContract();
       const patients = await contract.getPatientsForDoctor(userWallet);
-      setConsentedPatients(patients);
+      const uniquePatients = [...new Set(patients.map(p => p.toLowerCase()))];
+        setConsentedPatients(uniquePatients);
 
       if (patients.length > 0) {
         await fetchPatientProfiles(patients);
