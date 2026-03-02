@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from "react";
 import MainLayout from "../../layouts/MainLayout";
-import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
-
-const CONTRACT_ADDRESS = "0x70e01651535833E618432712999C1F4B87Ce8f74";
-const CONTRACT_ABI = [
-  "function addMedicalRecord(address _patientAddress, string memory _encryptedData) public",
-  "function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp)",
-  "function recordCount() public view returns (uint256)",
-  "function getPatientsForDoctor(address _doctor) public view returns (address[] memory)",
-  "event MedicalRecordAdded(uint256 indexed recordId, address indexed patientAddress, address indexed uploader, uint256 timestamp)"
-];
+import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
 
 export default function RekamMedis() {
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -46,13 +37,10 @@ export default function RekamMedis() {
     }
   }, [userWallet]);
 
-  const getProvider = () => new ethers.providers.JsonRpcProvider("http://127.0.0.1:7545");
-
   const fetchConsentedPatients = async () => {
     setIsFetchingPatients(true);
     try {
-      const provider = getProvider();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const contract = getReadOnlyContract();
       const patients = await contract.getPatientsForDoctor(userWallet);
       setConsentedPatients(patients);
 
@@ -88,8 +76,7 @@ export default function RekamMedis() {
   const fetchRecordsFromBlockchain = async () => {
     setIsFetching(true);
     try {
-      const provider = getProvider();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const contract = getReadOnlyContract();
 
       const totalCount = await contract.recordCount();
       const total = totalCount.toNumber();
@@ -174,11 +161,7 @@ export default function RekamMedis() {
         patientWallet.toLowerCase()
       ).toString();
 
-      if (!window.ethereum) throw new Error("MetaMask tidak terdeteksi!");
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const contract = await getSignerContract();
 
       const tx = await contract.addMedicalRecord(patientWallet, cipherText);
       alert("Memproses transaksi... Mohon tunggu.");

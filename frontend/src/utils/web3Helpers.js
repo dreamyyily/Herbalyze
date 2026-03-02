@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 export const connectWallet = async () => {
     if (window.ethereum) {
         try {
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
             await provider.send("eth_requestAccounts", []);
             const signer = provider.getSigner();
             const address = await signer.getAddress();
@@ -49,7 +49,7 @@ export const signMessage = async (message) => {
     }
 
     try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
         const signer = provider.getSigner();
         const address = await signer.getAddress();
         
@@ -73,7 +73,7 @@ export const signMessage = async (message) => {
 export const checkWalletConnection = async () => {
     if (window.ethereum) {
         try {
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
             const accounts = await provider.listAccounts();
             return accounts.length > 0 ? accounts[0] : null;
         } catch (error) {

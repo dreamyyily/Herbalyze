@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from "react";
 import MainLayout from "../../layouts/MainLayout";
-import { ethers } from "ethers";
-
-const CONTRACT_ADDRESS = "0x70e01651535833E618432712999C1F4B87Ce8f74";
-const CONTRACT_ABI = [
-  "function grantConsent(address _doctor) public",
-  "function revokeConsent(address _doctor) public",
-  "function checkConsent(address _patient, address _doctor) public view returns (bool)",
-];
+import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
 
 export default function DaftarDokter() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
@@ -44,8 +37,7 @@ export default function DaftarDokter() {
 
   const checkAllConsents = async (doctorList) => {
     try {
-      const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:7545");
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const contract = getReadOnlyContract();
 
       const results = await Promise.all(
         doctorList.map(async (doc) => {
@@ -74,11 +66,7 @@ export default function DaftarDokter() {
 
     setLoadingConsent((prev) => ({ ...prev, [normalizedDoctor]: true }));
     try {
-      if (!window.ethereum) throw new Error("MetaMask tidak terdeteksi!");
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const contract = await getSignerContract();
 
       let tx;
       if (currentConsent) {
@@ -94,12 +82,29 @@ export default function DaftarDokter() {
       setConsentMap((prev) => ({ ...prev, [normalizedDoctor]: !currentConsent }));
     } catch (err) {
       console.error("Gagal mengubah consent:", err);
-      if (err.message?.includes("Consent sudah diberikan")) {
+      // Ekstrak pesan revert dari error blockchain
+      const revertReason =
+        err?.data?.data?.reason ||
+        err?.data?.reason ||
+        err?.reason ||
+        err?.error?.data?.reason ||
+        "";
+      const errMsg = err?.data?.message || err?.message || "";
+
+      if (revertReason.includes("belum di-ACC") || errMsg.includes("belum di-ACC")) {
+        alert(
+          "❌ Akun Anda belum disetujui oleh Admin.\n\n" +
+          "Wallet address Anda perlu di-approve terlebih dahulu oleh Administrator Herbalyze sebelum bisa memberikan izin ke dokter.\n\n" +
+          "Hubungi admin untuk proses verifikasi."
+        );
+      } else if (revertReason.includes("Consent sudah diberikan") || errMsg.includes("Consent sudah diberikan")) {
         alert("ℹ️ Izin sudah diberikan sebelumnya.");
-      } else if (err.message?.includes("Consent belum pernah")) {
+      } else if (revertReason.includes("Consent belum pernah") || errMsg.includes("Consent belum pernah")) {
         alert("ℹ️ Belum ada izin yang diberikan.");
+      } else if (err.code === 4001) {
+        alert("⚠️ Transaksi dibatalkan oleh pengguna.");
       } else {
-        alert("❌ Gagal mengubah izin. Lihat console untuk detail.");
+        alert("❌ Gagal mengubah izin: " + (revertReason || errMsg || "Lihat console untuk detail."));
       }
     } finally {
       setLoadingConsent((prev) => ({ ...prev, [normalizedDoctor]: false }));

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import MainLayout from "../../layouts/MainLayout";
+import { getSignerContract, getSigner } from "../../utils/web3";
 
 export default function AdminDashboard() {
   const [pendingDoctors, setPendingDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [approving, setApproving] = useState({});
 
   useEffect(() => {
     fetchPendingDoctors();
@@ -22,14 +24,29 @@ export default function AdminDashboard() {
   };
 
   const handleApprove = async (walletAddress, nama) => {
-    const confirmation = window.confirm(`Apakah Anda yakin data atas nama ${nama} VALID dan ingin mengesahkannya di Smart Contract?`);
+    const confirmation = window.confirm(
+      `Apakah Anda yakin data atas nama ${nama} VALID?\n\nMetaMask akan terbuka untuk menandatangani transaksi approveUser() di Smart Contract.`
+    );
     if (!confirmation) return;
 
+    setApproving((prev) => ({ ...prev, [walletAddress]: true }));
+
     try {
-      // PERHATIAN: Di sistem blockchain asli, di sini Admin harus memanggil Metamask-nya
-      // await contract.methods.approveDoctor(walletAddress).send({ from: adminAddress });
-      
-      // Karena ini simulasi web2 database, kita tembak endpoint backend sinkronisasi:
+      // === LANGKAH 1: Panggil Smart Contract via MetaMask ===
+      const signer = await getSigner();
+      const signerAddress = await signer.getAddress();
+      const contract = await getSignerContract();
+      const isAdminOnChain = await contract.isAdmin(signerAddress);
+      if (!isAdminOnChain) {
+        throw new Error(`Akun MetaMask Anda (${signerAddress.substring(0, 8)}...) bukan Admin di Smart Contract! Gunakan akun yang men-deploy kontrak.`);
+      }
+
+      // Panggil approveUser di blockchain
+      const tx = await contract.approveUser(walletAddress);
+      await tx.wait(); // Tunggu konfirmasi blockchain
+      console.log("✅ approveUser berhasil di blockchain:", tx.hash);
+
+      // === LANGKAH 2: Update status di Database ===
       const response = await fetch("http://localhost:8000/api/admin/approve_doctor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,13 +54,16 @@ export default function AdminDashboard() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Gagal mengesahkan dokter");
+      if (!response.ok) throw new Error(data.detail || "Gagal update database");
 
-      alert("Sukses! " + nama + " resmi diubah statusnya menjadi Doctor.");
-      // Render ulang tabel
+      alert(`✅ Sukses! ${nama} telah di-approve di Blockchain dan Database.\n\nTx Hash: ${tx.hash}`);
       fetchPendingDoctors();
     } catch (error) {
-      alert("Error approving: " + error.message);
+      console.error("Error approving:", error);
+      const msg = error?.data?.message || error?.reason || error.message || "Terjadi kesalahan";
+      alert("❌ Gagal approve: " + msg);
+    } finally {
+      setApproving((prev) => ({ ...prev, [walletAddress]: false }));
     }
   };
 
@@ -53,6 +73,18 @@ export default function AdminDashboard() {
         <div className="mb-12">
           <h1 className="text-3xl font-extrabold text-dark-50">Dashboard Administrator</h1>
           <p className="text-dark-30 mt-2">Pusat kontrol dan verifikasi akses jaringan Blockchain Anda.</p>
+        </div>
+
+        {/* Info Box */}
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4 mb-8 flex items-start gap-3">
+          <span className="text-xl mt-0.5">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-700">Penting: Hubungkan MetaMask dengan akun Admin</p>
+            <p className="text-sm text-amber-600">
+              Untuk meng-approve dokter, MetaMask Anda harus terhubung dengan akun yang <strong>men-deploy smart contract</strong> (akun pertama / akun Admin di Ganache).
+              Proses approve akan memanggil <code className="bg-amber-100 px-1 rounded">approveUser()</code> di blockchain.
+            </p>
+          </div>
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl border border-light-40 overflow-hidden">
@@ -95,9 +127,9 @@ export default function AdminDashboard() {
                         <td className="py-4 px-4 text-dark-50">{doc.nama_instansi}</td>
                         <td className="py-4 px-4">
                           {doc.dokumen_url ? (
-                            <a 
-                              href={doc.dokumen_url} 
-                              target="_blank" 
+                            <a
+                              href={doc.dokumen_url}
+                              target="_blank"
                               rel="noreferrer"
                               className="text-blue-500 hover:text-blue-700 underline font-medium text-sm flex items-center gap-1"
                             >
@@ -110,9 +142,10 @@ export default function AdminDashboard() {
                         <td className="py-4 px-4 text-right">
                           <button
                             onClick={() => handleApprove(doc.wallet_address, doc.name)}
-                            className="bg-primary-40 text-white px-6 py-2 rounded-xl text-sm font-bold shadow hover:bg-primary-50 transition active:scale-95"
+                            disabled={approving[doc.wallet_address]}
+                            className="bg-primary-40 text-white px-6 py-2 rounded-xl text-sm font-bold shadow hover:bg-primary-50 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            ✓ Approve
+                            {approving[doc.wallet_address] ? "⏳ Memproses..." : "✓ Approve ke Blockchain"}
                           </button>
                         </td>
                       </tr>
@@ -123,7 +156,100 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {/* Panel Approve Pasien secara manual */}
+        <div className="mt-8 bg-white rounded-3xl shadow-sm border border-light-40 p-8">
+          <h2 className="text-xl font-bold text-dark-50 mb-2">Approve Wallet Pasien (Manual)</h2>
+          <p className="text-sm text-dark-30 mb-4">
+            Jika pasien tidak bisa melakukan consent karena belum di-approve, masukkan wallet address mereka di sini.
+          </p>
+          <ApprovePatientForm />
+        </div>
       </div>
     </MainLayout>
+  );
+}
+
+function ApprovePatientForm() {
+  const [walletInput, setWalletInput] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApprovePatient = async () => {
+    const wallet = walletInput.trim();
+    if (!wallet) return alert("Masukkan wallet address pasien terlebih dahulu.");
+    if (!wallet.startsWith("0x") || wallet.length !== 42) {
+      return alert("Format wallet address tidak valid! Harus diawali 0x dan 42 karakter.");
+    }
+
+    setIsProcessing(true);
+    try {
+      const signer = await getSigner();
+      const signerAddress = await signer.getAddress();
+      const contract = await getSignerContract();
+
+      // ✅ Verifikasi bahwa akun MetaMask adalah Admin
+      const isAdminCheck = await contract.isAdmin(signerAddress);
+      if (!isAdminCheck) {
+        alert(
+          `❌ Akun MetaMask Anda bukan Admin!\n\n` +
+          `Akun yang terhubung: ${signerAddress}\n\n` +
+          `Silakan ganti ke akun pertama Ganache (yang digunakan saat deploy kontrak) di MetaMask.`
+        );
+        return;
+      }
+
+      // Cek apakah sudah di-approve
+      const alreadyApproved = await contract.isApprovedUser(wallet);
+      if (alreadyApproved) {
+        alert(`ℹ️ Wallet ${wallet.substring(0,8)}... sudah di-approve sebelumnya.`);
+        return;
+      }
+
+      const tx = await contract.approveUser(wallet);
+      await tx.wait();
+      alert(`✅ Wallet pasien berhasil di-approve di Blockchain!\nTx Hash: ${tx.hash}`);
+      setWalletInput("");
+    } catch (error) {
+      console.error("Error approve pasien:", error);
+      // Ekstrak pesan revert yang bermakna
+      const revertReason =
+        error?.data?.data?.reason ||
+        error?.data?.reason ||
+        error?.reason ||
+        error?.error?.data?.reason ||
+        error?.data?.message ||
+        "";
+      const errMsg = error?.message || "Terjadi kesalahan";
+      const finalMsg = revertReason || errMsg;
+
+      if (finalMsg.includes("Hanya Admin")) {
+        alert("❌ Gagal: Akun MetaMask Anda bukan Admin di Smart Contract.\nGunakan akun pertama Ganache (akun deployer).");
+      } else if (finalMsg.includes("network does not support ENS") || finalMsg.includes("unknown")) {
+        alert("❌ Error jaringan: Pastikan MetaMask terhubung ke Ganache (localhost:7545, Chain ID: 1337).");
+      } else {
+        alert("❌ Gagal approve: " + finalMsg);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-3 items-center">
+      <input
+        type="text"
+        value={walletInput}
+        onChange={(e) => setWalletInput(e.target.value)}
+        placeholder="0x... (wallet address pasien)"
+        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-30"
+      />
+      <button
+        onClick={handleApprovePatient}
+        disabled={isProcessing}
+        className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-blue-700 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+      >
+        {isProcessing ? "⏳ Memproses..." : "🔐 Approve Pasien"}
+      </button>
+    </div>
   );
 }

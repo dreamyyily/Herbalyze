@@ -2,12 +2,7 @@ import React, { useState, useEffect } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
-
-const CONTRACT_ADDRESS = "0x70e01651535833E618432712999C1F4B87Ce8f74";
-const CONTRACT_ABI = [
-  "function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp)",
-  "function recordCount() public view returns (uint256)",
-];
+import { getReadOnlyContract } from "../../utils/web3";
 
 export default function CatatanDokter() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
@@ -23,16 +18,11 @@ export default function CatatanDokter() {
     }
   }, [userWallet]);
 
-  const getProvider = () => {
-    return new ethers.providers.JsonRpcProvider("http://127.0.0.1:7545");
-  };
-
   const fetchRecordsFromBlockchain = async () => {
     if (!userWallet) return;
     setIsFetching(true);
     try {
-      const provider = getProvider();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const contract = getReadOnlyContract();
 
       const totalCount = await contract.recordCount();
       const total = totalCount.toNumber();

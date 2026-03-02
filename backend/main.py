@@ -18,6 +18,7 @@ import traceback
 from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition
 from fastapi.encoders import jsonable_encoder
+from blockchain_service import approve_wallet_on_chain
 
 Base.metadata.create_all(bind=engine)
 
@@ -120,7 +121,17 @@ def connect_wallet(req: ConnectWalletRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return {"message": "Wallet linked successfully", "user": user.to_dict()}
+    blockchain_result = approve_wallet_on_chain(wallet_addr)
+    if blockchain_result.get("success"):
+        print(f"✅ Blockchain approve sukses untuk {wallet_addr}")
+    else:
+        print(f"⚠️ Blockchain approve gagal (non-fatal): {blockchain_result.get('error')}")
+
+    return {
+        "message": "Wallet linked successfully",
+        "user": user.to_dict(),
+        "blockchain_approved": blockchain_result.get("success", False)
+    }
 
 @app.post("/api/generate_nonce")
 def generate_nonce(req: Web3AuthRequest, db: Session = Depends(get_db)):
@@ -225,7 +236,17 @@ def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return {"message": "User berhasil diverifikasi menjadi Doctor di database.", "user": user.to_dict()}
+    blockchain_result = approve_wallet_on_chain(wallet_address)
+    if blockchain_result.get("success"):
+        print(f"✅ Dokter {wallet_address} berhasil di-approve di blockchain")
+    else:
+        print(f"⚠️ Blockchain approve dokter gagal (non-fatal): {blockchain_result.get('error')}")
+
+    return {
+        "message": "User berhasil diverifikasi menjadi Doctor di database dan blockchain.",
+        "user": user.to_dict(),
+        "blockchain_approved": blockchain_result.get("success", False)
+    }
 
 
 @app.get("/api/diagnoses")

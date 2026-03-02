@@ -71,7 +71,8 @@ contract MedicalRecordSystem {
     }
 
     // Consent Function
-    function grantConsent(address _doctor) public onlyApprovedUser {
+    // Pasien bebas memberikan izin ke dokter tanpa perlu approval admin
+    function grantConsent(address _doctor) public {
         require(!patientConsent[msg.sender][_doctor], "Consent sudah diberikan sebelumnya.");
         patientConsent[msg.sender][_doctor] = true;
         patientDoctors[msg.sender].push(_doctor);
@@ -79,7 +80,8 @@ contract MedicalRecordSystem {
         emit ConsentGranted(msg.sender, _doctor);
     }
 
-    function revokeConsent(address _doctor) public onlyApprovedUser {
+    // Pasien bebas mencabut izin dari dokter tanpa perlu approval admin
+    function revokeConsent(address _doctor) public {
         require(patientConsent[msg.sender][_doctor], "Consent belum pernah diberikan.");
         patientConsent[msg.sender][_doctor] = false;
         emit ConsentRevoked(msg.sender, _doctor);
