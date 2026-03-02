@@ -73,6 +73,10 @@ class Web3AuthRequest(BaseModel):
 class ApproveDoctorRequest(BaseModel):
     wallet_address: str
 
+# Class request untuk endpoint reject
+class RejectDoctorRequest(BaseModel):
+    wallet_address: str
+
 @app.get("/")
 def home():
     return {"message": "Welcome to Herbalyze FastAPI System RMP"}
@@ -226,6 +230,57 @@ def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
     db.refresh(user)
 
     return {"message": "User berhasil diverifikasi menjadi Doctor di database.", "user": user.to_dict()}
+
+# --- ENDPOINT BARU: REJECT DOCTOR ---
+@app.post("/api/admin/reject_doctor")
+def reject_doctor(req: RejectDoctorRequest, db: Session = Depends(get_db)):
+    wallet_address = req.wallet_address.lower()
+    user = db.query(User).filter(func.lower(User.wallet_address) == wallet_address).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role != "Pending_Doctor":
+        raise HTTPException(status_code=400, detail="User is not a Pending Doctor")
+    
+    # Kembalikan role ke Patient
+    user.role = "Rejected_Doctor"
+    
+    # Opsional & Disarankan: Hapus data pengajuannya agar bersih jika ingin daftar ulang
+    user.nomor_str = None
+    user.nama_instansi = None
+    
+    # Hapus file PDF fisik dari server untuk menghemat ruang
+    if user.dokumen_str_path and os.path.exists(user.dokumen_str_path):
+        try:
+            os.remove(user.dokumen_str_path)
+        except Exception as e:
+            print(f"Gagal menghapus file STR: {e}")
+            
+    user.dokumen_str_path = None
+    
+    db.commit()
+    db.refresh(user)
+
+    return {"message": f"Pengajuan dokter atas nama {user.name} berhasil ditolak dan data dihapus."}
+
+    # (Tambahkan class request ini di bagian atas file bersama class Pydantic lainnya, atau di atas fungsi reset_role ini juga tidak apa-apa)
+class ResetRoleRequest(BaseModel):
+    wallet_address: str
+
+@app.post("/api/reset_role")
+def reset_role(req: ResetRoleRequest, db: Session = Depends(get_db)):
+    wallet_address = req.wallet_address.lower()
+    user = db.query(User).filter(func.lower(User.wallet_address) == wallet_address).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Kembalikan role murni menjadi Pasien biasa
+    user.role = "Patient"
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "Status berhasil direset menjadi Pasien", "user": user.to_dict()}
 
 
 @app.get("/api/diagnoses")

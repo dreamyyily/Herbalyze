@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { connectWallet, signMessage, requestNonce } from '../utils/web3Helpers'; 
@@ -12,7 +11,7 @@ const Login = () => {
         setLoginData({ ...loginData, [e.target.name]: e.target.value });
     };
 
-    // 1. Traditional Login (Email/Password)
+    // 1. Masuk Tradisional (Email/Kata Sandi)
     const handleEmailLogin = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -23,9 +22,9 @@ const Login = () => {
                 body: JSON.stringify(loginData)
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Login failed');
+            if (!response.ok) throw new Error(data.error || 'Gagal masuk');
             
-            // Save basic session
+            // Simpan sesi dasar
             localStorage.setItem('user_profile', JSON.stringify(data.user));
             if (data.user.wallet_address) {
                 localStorage.setItem('user_wallet', data.user.wallet_address);
@@ -44,20 +43,20 @@ const Login = () => {
         }
     };
 
-    // 2. MetaMask Login (Signature-based, FREE - no gas fee)
+    // 2. Masuk MetaMask (Berbasis Tanda Tangan, GRATIS - tanpa biaya gas)
     const handleConnectMetaMask = async () => {
         setIsLoading(true);
         try {
-            // Step 1: Connect wallet and get address
+            // Langkah 1: Hubungkan wallet dan dapatkan alamat (address)
             const address = await connectWallet();
             
-            // Step 2: GET NONCE FROM BACKEND !!
+            // Langkah 2: DAPATKAN NONCE DARI BACKEND !!
             const nonce = await requestNonce(address);
             
-            // Step 3: Sign message (FREE - no gas fee, just signature)
+            // Langkah 3: Tanda tangani pesan (GRATIS - tanpa biaya gas, hanya tanda tangan)
             const signedData = await signMessage(nonce);
             
-            // Step 4: Send to backend for verification
+            // Langkah 4: Kirim ke backend untuk verifikasi
             const response = await fetch('http://localhost:8000/api/verify_signature', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -69,10 +68,10 @@ const Login = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
+                throw new Error(data.error || 'Gagal masuk');
             }
 
-            // Step 5: Save session and navigate
+            // Langkah 5: Simpan sesi dan arahkan
             localStorage.setItem('user_wallet', signedData.address);
             if (data.user) {
                 localStorage.setItem('user_profile', JSON.stringify(data.user));
@@ -81,8 +80,8 @@ const Login = () => {
             navigate('/home');
 
         } catch (error) {
-            console.error("MetaMask Login Error:", error);
-            alert("Login failed: " + error.message);
+            console.error("Kesalahan Masuk MetaMask:", error);
+            alert("Gagal masuk: " + error.message);
         } finally {
             setIsLoading(false);
         }
@@ -90,38 +89,38 @@ const Login = () => {
 
     return (
         <div className="min-h-screen flex flex-col md:flex-row font-sans">
-            {/* Left Side: Interaction */}
+            {/* Sisi Kiri: Interaksi */}
             <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative z-10">
                 <div className="max-w-md w-full space-y-8">
                     <div className="text-center">
                         <h1 className="text-4xl font-extrabold text-primary-40 tracking-tight">Herbalyze</h1>
-                        <p className="mt-2 text-sm text-gray-500">Welcome back! Please login to your account.</p>
+                        <p className="mt-2 text-sm text-gray-500">Selamat datang kembali! Silakan masuk ke akun Anda.</p>
                     </div>
 
                     <form className="mt-8 space-y-6" onSubmit={handleEmailLogin}>
                         <div className="rounded-md shadow-sm -space-y-px">
                             <div>
-                                <label htmlFor="email-address" className="sr-only">Email address</label>
+                                <label htmlFor="email-address" className="sr-only">Alamat Email</label>
                                 <input
                                     id="email"
                                     name="email"
                                     type="email"
                                     required
                                     className="appearance-none rounded-t-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-40 focus:border-primary-40 focus:z-10 sm:text-sm"
-                                    placeholder="Email address"
+                                    placeholder="Alamat email"
                                     value={loginData.email}
                                     onChange={handleChange}
                                 />
                             </div>
                             <div>
-                                <label htmlFor="password" className="sr-only">Password</label>
+                                <label htmlFor="password" className="sr-only">Kata Sandi</label>
                                 <input
                                     id="password"
                                     name="password"
                                     type="password"
                                     required
                                     className="appearance-none rounded-b-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-40 focus:border-primary-40 focus:z-10 sm:text-sm"
-                                    placeholder="Password"
+                                    placeholder="Kata sandi"
                                     value={loginData.password}
                                     onChange={handleChange}
                                 />
@@ -134,7 +133,7 @@ const Login = () => {
                                 disabled={isLoading}
                                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-white bg-primary-40 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-40 transition-all"
                             >
-                                Sign in
+                                {isLoading ? 'Memproses...' : 'Masuk'}
                             </button>
                         </div>
                     </form>
@@ -144,7 +143,7 @@ const Login = () => {
                             <div className="w-full border-t border-gray-300"></div>
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">Or continue with Blockchain</span>
+                            <span className="px-2 bg-white text-gray-500">Atau masuk melalui jaringan Blockchain</span>
                         </div>
                     </div>
 
@@ -154,24 +153,24 @@ const Login = () => {
                         className="w-full flex justify-center items-center gap-3 py-3 px-6 border border-gray-300 rounded-xl text-gray-700 bg-white hover:bg-gray-50 shadow-sm transform transition hover:scale-[1.01]"
                     >
                          <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-6 h-6" />
-                        <span className="font-semibold">Login with MetaMask</span>
+                        <span className="font-semibold">Masuk dengan MetaMask</span>
                     </button>
 
                     <div className="text-center mt-4">
                         <p className="text-sm text-gray-600">
-                            Don't have an account?{' '}
+                            Belum punya akun?{' '}
                             <span 
                                 onClick={() => navigate('/register')} 
                                 className="font-medium text-primary-40 hover:text-primary-50 cursor-pointer"
                             >
-                                Register here
+                                Daftar di sini
                             </span>
                         </p>
                     </div>
                 </div>
             </div>
 
-             {/* Right Side: Visuals */}
+             {/* Sisi Kanan: Visual */}
              <div className="hidden md:flex md:w-1/2 bg-gradient-to-b from-green-200 via-green-400 to-green-800 relative overflow-hidden flex-col justify-center items-center">
                 <div className="relative z-10 text-center max-w-lg px-8">
                      <div className="mb-8 transform hover:scale-105 transition duration-500">
@@ -179,9 +178,9 @@ const Login = () => {
                              <span className="text-6xl filter drop-shadow-lg">🌿</span>
                         </div>
                      </div>
-                    <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Nature Meets Technology</h2>
-                    <p className="text-white text-lg font-medium bg-white/20 p-4 rounded-xl backdrop-blur-sm shadow-lg">
-                        "Your health data, secured by blockchain technology. Experience the future of herbal medicine recommendations."
+                    <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Herbalyze</h2>
+                    <p className="text-white text-lg font-medium bg-white/20 p-5 rounded-xl backdrop-blur-sm shadow-lg leading-relaxed">
+                        "Data kesehatan Anda dijamin aman oleh teknologi Blockchain. Rasakan pengalaman masa depan dalam rekomendasi pengobatan herbal."
                     </p>
                 </div>
             </div>

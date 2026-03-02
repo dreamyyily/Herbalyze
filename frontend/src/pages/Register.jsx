@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { connectWallet, signMessage } from '../utils/web3Helpers';
@@ -26,7 +25,7 @@ const Register = () => {
         e.preventDefault();
         
         if (formData.password !== formData.confirmPassword) {
-            alert("Passwords do not match!");
+            alert("Kata sandi tidak cocok! Silakan periksa kembali.");
             return;
         }
 
@@ -39,9 +38,9 @@ const Register = () => {
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Registration failed');
+            if (!response.ok) throw new Error(data.error || 'Pendaftaran gagal');
 
-            // Success, move to Step 2 (Connect Wallet)
+            // Sukses, lanjut ke Langkah 2 (Connect Wallet)
             setRegisteredUser(data.user);
             setStep(2);
 
@@ -55,10 +54,10 @@ const Register = () => {
     const handleLinkWallet = async () => {
         setIsLoading(true);
         try {
-            // Step 1: Connect wallet and get address
+            // Langkah 1: Connect wallet dan dapatkan address
             const address = await connectWallet();
             
-            // Step 2: Link wallet to account (No signature needed for linking)
+            // Langkah 2: Tautkan wallet ke akun
             const response = await fetch('http://localhost:8000/api/connect-wallet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -70,18 +69,18 @@ const Register = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to link wallet');
+                throw new Error(data.error || 'Gagal menautkan wallet');
             }
 
-            // Success! Save session and go home
+            // Sukses! Simpan sesi dan masuk ke Beranda
             localStorage.setItem('user_wallet', address);
             localStorage.setItem('user_profile', JSON.stringify(data.user));
 
             navigate('/home');
 
         } catch (error) {
-            console.error("Wallet Linking Error:", error);
-            alert("Failed to link wallet: " + error.message);
+            console.error("Kesalahan Tautkan Wallet:", error);
+            alert("Gagal menautkan wallet: " + error.message);
         } finally {
             setIsLoading(false);
         }
@@ -89,90 +88,106 @@ const Register = () => {
 
     return (
         <div className="min-h-screen flex flex-col md:flex-row font-sans">
-            {/* Left Side: Form */}
+            {/* Sisi Kiri: Formulir */}
             <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative z-10">
                 <div className="max-w-md w-full">
                     {step === 1 ? (
-                        // STEP 1: REGISTRATION FORM
+                        // LANGKAH 1: FORMULIR PENDAFTARAN
                         <div className="bg-white p-8 rounded-2xl shadow-xl">
                             <div className="text-center mb-8">
                                 <h1 className="text-4xl font-extrabold text-primary-40 tracking-tight">Herbalyze</h1>
-                                <h2 className="text-3xl font-bold text-gray-900 mt-2">Create Account</h2>
-                                <p className="text-gray-500 mt-2">Join Herbalyze as a Patient</p>
+                                <h2 className="text-3xl font-bold text-gray-900 mt-2">Buat Akun Baru</h2>
+                                <p className="text-gray-500 mt-2">Bergabunglah dengan Herbalyze</p>
                             </div>
 
                             <form className="space-y-6" onSubmit={handleRegister}>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                                    <label className="block text-sm font-medium text-gray-700">Nama Lengkap</label>
                                     <input 
                                         name="name" 
                                         type="text" 
                                         required 
-                                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm"
+                                        placeholder="Sesuai KTP"
+                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
                                         value={formData.name}
                                         onChange={handleChange}
                                     />
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                                    <label className="block text-sm font-medium text-gray-700">Alamat Email</label>
                                     <input 
                                         name="email" 
                                         type="email" 
                                         required 
-                                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm"
+                                        placeholder="contoh@email.com"
+                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
                                         value={formData.email}
                                         onChange={handleChange}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Password</label>
+                                    <label className="block text-sm font-medium text-gray-700">Kata Sandi</label>
                                     <input 
                                         name="password" 
                                         type="password" 
                                         required 
-                                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm"
+                                        placeholder="Minimal 8 karakter"
+                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
                                         value={formData.password}
                                         onChange={handleChange}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                                    <label className="block text-sm font-medium text-gray-700">Konfirmasi Kata Sandi</label>
                                     <input 
                                         name="confirmPassword" 
                                         type="password" 
                                         required 
-                                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm"
+                                        placeholder="Ketik ulang kata sandi"
+                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
                                         value={formData.confirmPassword}
                                         onChange={handleChange}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Role</label>
-                                    <select disabled className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm text-gray-500">
-                                        <option>Patient (Default)</option>
+                                    <label className="block text-sm font-medium text-gray-700">Peran Pengguna (Role)</label>
+                                    <select disabled className="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm sm:text-sm text-gray-500 cursor-not-allowed">
+                                        <option>Pasien (Default)</option>
                                     </select>
+                                    
+                                    {/* --- INFORMASI TAMBAHAN UNTUK DOKTER --- */}
+                                    <div className="mt-3 p-4 bg-blue-50/50 border border-blue-100 rounded-xl flex items-start gap-3">
+                                        <div className="text-xl mt-0.5">🩺</div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-blue-800">Anda Tenaga Medis ?</h4>
+                                            <p className="text-xs text-blue-600 mt-1 leading-relaxed">
+                                                Seluruh akun didaftarkan sebagai Pasien pada awalnya. Anda dapat mengajukan verifikasi akses Dokter melalui menu Data Personal setelah pendaftaran selesai.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {/* -------------------------------------- */}
                                 </div>
 
                                 <button 
                                     type="submit" 
                                     disabled={isLoading}
-                                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-40 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-40 transition-all"
+                                    className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-lg shadow-primary-40/30 text-sm font-bold text-white bg-primary-40 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-40 transition-all active:scale-95 mt-4"
                                 >
-                                    {isLoading ? 'Processing...' : 'Register'}
+                                    {isLoading ? 'Memproses...' : 'Daftar Akun'}
                                 </button>
                             </form>
-                            <div className="text-center mt-4">
-                                <span onClick={() => navigate('/')} className="text-primary-40 cursor-pointer hover:underline">
-                                    Already have an account? Login
+                            <div className="text-center mt-6">
+                                <span onClick={() => navigate('/')} className="text-primary-40 text-sm font-medium cursor-pointer hover:underline">
+                                    Sudah punya akun? Masuk di sini
                                 </span>
                             </div>
                         </div>
                     ) : (
-                        // STEP 2: LINK WALLET
+                        // LANGKAH 2: LINK WALLET
                         <div className="bg-white p-8 rounded-2xl shadow-xl text-center">
                             <div className="mb-6 flex justify-center">
                                 <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center animate-bounce">
@@ -180,9 +195,9 @@ const Register = () => {
                                 </div>
                             </div>
                             
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect Your Wallet</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Hubungkan Wallet Anda</h2>
                             <p className="text-gray-500 mb-8">
-                                Final step! Link your MetaMask wallet to secure your identity on the blockchain.
+                                Langkah terakhir! Tautkan dompet MetaMask Anda untuk mengamankan data medis ke dalam jaringan Blockchain.
                             </p>
 
                             <button 
@@ -191,14 +206,14 @@ const Register = () => {
                                 className="w-full flex justify-center items-center gap-3 py-3 px-6 border border-gray-300 rounded-xl text-gray-800 bg-white hover:bg-gray-50 shadow-md transform transition hover:scale-105"
                             >
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-6 h-6" />
-                                <span className="font-bold">Link MetaMask</span>
+                                <span className="font-bold">Hubungkan MetaMask</span>
                             </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Right Side: Visuals */}
+            {/* Sisi Kanan: Visual */}
             <div className="hidden md:flex md:w-1/2 bg-gradient-to-b from-green-200 via-green-400 to-green-800 relative overflow-hidden flex-col justify-center items-center">
                 <div className="relative z-10 text-center max-w-lg px-8">
                     <div className="mb-8 transform hover:scale-105 transition duration-500">
@@ -206,9 +221,10 @@ const Register = () => {
                             <span className="text-6xl filter drop-shadow-lg">🌿</span>
                         </div>
                     </div>
-                    <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Nature Meets Technology</h2>
-                    <p className="text-white text-lg font-medium bg-white/20 p-4 rounded-xl backdrop-blur-sm shadow-lg">
-                        "Your health data, secured by blockchain technology. Experience the future of herbal medicine recommendations."
+                    {/* Tagline utama tetap bahasa Inggris karena nama brand, atau bisa disesuaikan */}
+                    <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Herbalyze</h2>
+                    <p className="text-white text-lg font-medium bg-white/20 p-5 rounded-xl backdrop-blur-sm shadow-lg leading-relaxed">
+                        "Data kesehatan Anda dijamin aman oleh teknologi Blockchain. Rasakan pengalaman masa depan dalam rekomendasi pengobatan herbal."
                     </p>
                 </div>
             </div>
