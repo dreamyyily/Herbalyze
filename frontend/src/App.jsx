@@ -51,21 +51,35 @@ const DoctorOnlyRoute = ({ children }) => {
     return children;
 };
 
-// Hanya Pasien
+// --- PERBAIKAN LOGIKA AKSES PASIEN ---
+// Hanya Pasien (Termasuk yang sedang Pending atau Rejected)
 const PatientOnlyRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
-    if (profile.role !== 'Patient') {
+    
+    const isPatientGroup = 
+        profile.role === 'Patient' || 
+        profile.role === 'Pending_Doctor' || 
+        profile.role === 'Rejected_Doctor';
+
+    if (!isPatientGroup) {
         return <Navigate to="/home" state={{ from: location }} replace />;
     }
     return children;
 };
 
-// Pasien & Dokter
+// Pasien (Termasuk Pending/Rejected) & Dokter
 const PatientDoctorRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
-    if (profile.role !== 'Patient' && profile.role !== 'Doctor') {
+
+    const isPatientDoctorGroup = 
+        profile.role === 'Patient' || 
+        profile.role === 'Doctor' ||
+        profile.role === 'Pending_Doctor' || 
+        profile.role === 'Rejected_Doctor';
+
+    if (!isPatientDoctorGroup) {
         return <Navigate to="/home" state={{ from: location }} replace />;
     }
     return children;

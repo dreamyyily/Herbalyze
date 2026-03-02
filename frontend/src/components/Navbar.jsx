@@ -4,6 +4,10 @@ export default function Navbar() {
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
   const role = profile.role || 'Patient';
 
+  // --- LOGIKA PERBAIKAN ROLE ---
+  // Anggap Pending dan Rejected sebagai Pasien biasa agar menu tetap muncul
+  const isPatientMenuVisible = role === 'Patient' || role === 'Pending_Doctor' || role === 'Rejected_Doctor';
+
   return (
     <nav className="flex justify-between items-center py-6 px-12 border-b border-light-40 bg-white shadow-sm">
       <div className="flex items-center gap-4">
@@ -18,11 +22,17 @@ export default function Navbar() {
             👑 Administrator
           </span>
         )}
+        {/* Opsional: Tampilkan badge kecil untuk status pending/rejected di sebelah logo */}
+        {role === 'Pending_Doctor' && (
+          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full">
+            ⏳ Menunggu Verifikasi
+          </span>
+        )}
       </div>
 
       <div className="flex gap-10">
         {/* Pasien: Home, Data Personal, Daftar Dokter, Catatan Dokter, Riwayat */}
-        {role === 'Patient' && (
+        {isPatientMenuVisible && (
           <>
             <NavLink to="/home" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Beranda
