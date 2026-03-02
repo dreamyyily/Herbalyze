@@ -1,7 +1,7 @@
 import MainLayout from "../../layouts/MainLayout";
 import SelectField from "../../components/SelectField";
 import InputField from "../../components/InputField";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { formatTanggal } from "../../utils/formatTanggal";
 import { validateRequired } from "../../utils/validateForm";
@@ -22,7 +22,7 @@ export default function DataPersonal() {
   const [isDoctorModalOpen, setIsDoctorModalOpen] = useState(false);
   const [isIncompleteModalOpen, setIsIncompleteModalOpen] = useState(false);
   
-  // --- STATE BARU: Modal Hasil Dinamis (Menggantikan isSuccessModalOpen & alert) ---
+  // --- STATE BARU: Modal Hasil Dinamis (Toast) ---
   const [actionResult, setActionResult] = useState({
     isOpen: false,
     type: 'success', // 'success' atau 'danger'
@@ -30,15 +30,21 @@ export default function DataPersonal() {
     message: ''
   });
 
+  const toastTimer = useRef(null);
+
   const [doctorRequest, setDoctorRequest] = useState({ nomorSTR: "", institusi: "", dokumen: null });
   const [formData, setFormData] = useState({ photo: null, nik: "", nama: "", tempatLahir: "", tanggalLahir: "", email: "", nomorHp: "", jenisKelamin: "", alergiHerbal: [] });
 
   const requiredFields = { nik: "NIK", nama: "Nama Lengkap", tanggalLahir: "Tanggal Lahir", email: "Email", alergiHerbal: "Alergi Herbal" };
   const [herbsOptions, setHerbsOptions] = useState([]);
 
+  // --- MENGATASI KONFLIK DI USE EFFECT ---
   useEffect(() => {
     const wallet = localStorage.getItem("user_wallet");
-    if (!wallet) return;
+    if (!wallet) {
+      console.error("Wallet tidak ditemukan");
+      return;
+    }
 
     // 1. Load dari LocalStorage
     const savedProfile = loadProfile();
@@ -59,11 +65,20 @@ export default function DataPersonal() {
         }));
       }).catch((err) => console.error("Gagal load profile:", err));
 
+    // 3. Fetch Herbs Options
     fetch("http://127.0.0.1:8000/api/herbs")
       .then((res) => res.json())
       .then((data) => { setHerbsOptions(["Tidak Ada", ...data]); })
       .catch((err) => console.error("Gagal load herbs:", err));
   }, []);
+
+  const showToast = (type, title, message) => {
+    setActionResult({ isOpen: true, type, title, message });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      setActionResult(prev => ({ ...prev, isOpen: false }));
+    }, 3500);
+  };
 
   const isPersonalDataComplete = (showError = false) => {
     const newErrors = validateRequired(formData, requiredFields);
@@ -85,15 +100,15 @@ export default function DataPersonal() {
   const handleDoctorChange = (e) => { const { name, value } = e.target; setDoctorRequest((prev) => ({ ...prev, [name]: value })); };
   const handleDoctorFile = (e) => { const file = e.target.files[0]; if (file) setDoctorRequest((prev) => ({ ...prev, dokumen: file })); };
 
-  // --- FUNGSI REQUEST DOKTER (Bebas Alert) ---
+  // --- FUNGSI REQUEST DOKTER ---
   const handleSubmitDoctorRequest = async () => {
     if (!doctorRequest.nomorSTR || !doctorRequest.institusi || !doctorRequest.dokumen) { 
-      setActionResult({ isOpen: true, type: 'danger', title: 'Data Belum Lengkap', message: 'Harap lengkapi nomor STR, institusi, dan dokumen pendukung.'});
+      showToast('danger', 'Data Belum Lengkap', 'Harap lengkapi nomor STR, institusi, dan dokumen pendukung.');
       return; 
     }
     const walletAddress = localStorage.getItem("user_wallet");
     if (!walletAddress) { 
-      setActionResult({ isOpen: true, type: 'danger', title: 'Sesi Tidak Valid', message: 'Silakan login dengan wallet Anda terlebih dahulu.'});
+      showToast('danger', 'Sesi Tidak Valid', 'Silakan login dengan wallet Anda terlebih dahulu.');
       return; 
     }
 
@@ -112,17 +127,11 @@ export default function DataPersonal() {
       setIsDoctorModalOpen(false); 
       setFormData(prev => ({...prev, role: 'Pending_Doctor'}));
 
-      // Pop-up Sukses Elegan
-      setActionResult({
-        isOpen: true,
-        type: 'success',
-        title: 'Pengajuan Berhasil',
-        message: 'Dokumen STR Anda telah dikirim dan sedang dalam antrean verifikasi Admin.'
-      });
+      showToast('success', 'Pengajuan Berhasil', 'Dokumen STR Anda telah dikirim dan sedang dalam antrean verifikasi Admin.');
 
     } catch (err) { 
       setIsDoctorModalOpen(false);
-      setActionResult({ isOpen: true, type: 'danger', title: 'Terjadi Kesalahan', message: err.message });
+      showToast('danger', 'Terjadi Kesalahan', err.message);
     }
   };
 
@@ -149,8 +158,7 @@ export default function DataPersonal() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 4 * 1024 * 1024) { 
-        // Ganti alert jadi pop-up error
-        setActionResult({ isOpen: true, type: 'danger', title: 'File Terlalu Besar', message: 'Ukuran foto maksimal yang diizinkan adalah 4MB.'});
+        showToast('danger', 'File Terlalu Besar', 'Ukuran foto maksimal yang diizinkan adalah 4MB.');
         return; 
       }
       const reader = new FileReader();
@@ -179,20 +187,14 @@ export default function DataPersonal() {
       navigate("/", { state: { profileUpdated: true } });
     } else {
       setIsEdit(false);
-      // Gunakan state modal dinamis baru
-      setActionResult({
-        isOpen: true,
-        type: 'success',
-        title: 'Penyimpanan Berhasil',
-        message: 'Data profil personal Anda telah berhasil diperbarui dan disimpan ke dalam sistem.'
-      });
+      showToast('success', 'Penyimpanan Berhasil', 'Data profil personal Anda telah berhasil diperbarui.');
     }
   };
 
   if (!isEdit) {
     return (
       <MainLayout>
-        <div className="max-w-5xl mx-auto px-4 mt-16 pb-20">
+        <div className="max-w-5xl mx-auto px-4 mt-16 pb-20 relative">
           <div className="bg-white rounded-3xl shadow-2xl p-12 border border-light-40 relative">
             <button onClick={() => setIsEdit(true)} className="absolute top-10 right-10 bg-primary-10 text-primary-50 px-6 py-2.5 rounded-full font-bold hover:bg-primary-20 transition">✎ Edit Profil</button>
             <div className="flex items-center gap-8 mb-16">
@@ -311,36 +313,27 @@ export default function DataPersonal() {
           </div>
         )}
 
-        {/* MODAL HASIL DINAMIS (SUKSES/GAGAL UNTUK SIMPAN & REQUEST) */}
+        {/* TOAST NOTIFICATION */}
         {actionResult.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-50/40 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-[420px] p-8 md:p-10 text-center transform transition-all border border-gray-100">
-              
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border-[8px] ${
-                actionResult.type === 'success' ? 'bg-green-50 border-green-50/50 text-green-500' : 'bg-red-50 border-red-50/50 text-red-500'
+          <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[60] animate-fade-in shadow-2xl rounded-2xl pointer-events-none">
+            <div className={`px-6 py-4 rounded-2xl bg-white border-l-8 flex items-center gap-4 min-w-[350px] ${
+              actionResult.type === 'success' ? 'border-l-green-500' : 'border-l-red-500'
+            }`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                actionResult.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
               }`}>
                 {actionResult.type === 'success' ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 )}
               </div>
-              
-              <h3 className="text-2xl font-bold text-gray-800 mb-3">{actionResult.title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed mb-10 px-2">
-                {actionResult.message}
-              </p>
-              
-              <button 
-                onClick={() => setActionResult({ ...actionResult, isOpen: false })} 
-                className={`w-full py-4 rounded-xl text-white font-bold transition-all shadow-lg active:scale-95 ${
-                  actionResult.type === 'success' 
-                    ? 'bg-primary-40 hover:bg-primary-50 shadow-primary-40/30' 
-                    : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
-                }`}
-              >
-                Selesai
-              </button>
+              <div>
+                <h4 className="font-bold text-gray-800 text-sm">
+                  {actionResult.title}
+                </h4>
+                <p className="text-gray-500 text-xs mt-0.5">{actionResult.message}</p>
+              </div>
             </div>
           </div>
         )}
@@ -354,8 +347,8 @@ export default function DataPersonal() {
   // ==========================================
   return (
     <MainLayout>
-      <div className="max-w-5xl mx-auto px-4 mt-16 pb-20">
-        <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-light-40">
+      <div className="max-w-5xl mx-auto px-4 mt-16 pb-20 relative">
+        <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-light-40 relative z-10">
           <div className="flex justify-between items-center mb-10">
             <h2 className="text-2xl md:text-3xl font-extrabold text-dark-50">Edit Profil Personal</h2>
             <button onClick={() => {
@@ -423,6 +416,32 @@ export default function DataPersonal() {
           </div>
 
         </div>
+
+        {/* TOAST NOTIFICATION UNTUK MODE EDIT */}
+        {actionResult.isOpen && (
+          <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[60] animate-fade-in shadow-2xl rounded-2xl pointer-events-none">
+            <div className={`px-6 py-4 rounded-2xl bg-white border-l-8 flex items-center gap-4 min-w-[350px] ${
+              actionResult.type === 'success' ? 'border-l-green-500' : 'border-l-red-500'
+            }`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                actionResult.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+              }`}>
+                {actionResult.type === 'success' ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                )}
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-800 text-sm">
+                  {actionResult.title}
+                </h4>
+                <p className="text-gray-500 text-xs mt-0.5">{actionResult.message}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </MainLayout>
   );

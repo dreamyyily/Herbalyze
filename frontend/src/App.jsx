@@ -1,19 +1,20 @@
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import Home from "./pages/general/Home.jsx";
-import DataPersonal from "./pages/general/DataPersonal.jsx";
+import Home from "./pages/patient/Home.jsx";
+import DataPersonal from "./pages/patient/DataPersonal.jsx";
 import CatatanDokter from "./pages/patient/CatatanDokter.jsx";
+import DaftarDokter from "./pages/patient/DaftarDokter.jsx";
 import RekamMedis from "./pages/doctor/RekamMedis.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
-import Riwayat from "./pages/general/Riwayat.jsx";
+import Riwayat from "./pages/patient/Riwayat.jsx";
 import { checkWalletConnection, listenToAccountChanges } from "./utils/web3Helpers";
 
 const ProtectedRoute = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(null);
     const location = useLocation();
-    
+
     useEffect(() => {
         const checkAuth = async () => {
             const address = await checkWalletConnection();
@@ -23,46 +24,50 @@ const ProtectedRoute = ({ children }) => {
     }, []);
 
     if (isAuthenticated === null) {
-        return <div className="flex h-screen items-center justify-center">Loading...</div>; 
+        return <div className="flex h-screen items-center justify-center">Loading...</div>;
     }
-
     if (!isAuthenticated) {
         return <Navigate to="/" state={{ from: location }} replace />;
     }
-
     return children;
 };
 
 const AdminRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
-    
     if (profile.role !== 'Admin') {
         return <Navigate to="/" state={{ from: location }} replace />;
     }
-
     return children;
 };
 
+// Hanya Dokter
 const DoctorOnlyRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
-    
     if (profile.role !== 'Doctor') {
         return <Navigate to="/home" state={{ from: location }} replace />;
     }
-
     return children;
 };
 
+// Hanya Pasien
+const PatientOnlyRoute = ({ children }) => {
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const location = useLocation();
+    if (profile.role !== 'Patient') {
+        return <Navigate to="/home" state={{ from: location }} replace />;
+    }
+    return children;
+};
+
+// Pasien & Dokter
 const PatientDoctorRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
-    
     if (profile.role !== 'Patient' && profile.role !== 'Doctor') {
         return <Navigate to="/home" state={{ from: location }} replace />;
     }
-
     return children;
 };
 
@@ -75,9 +80,7 @@ const AppContent = () => {
             if (location.pathname === '/') {
                 const address = await checkWalletConnection();
                 const storedWallet = localStorage.getItem('user_wallet');
-                
                 if (address && storedWallet && address.toLowerCase() === storedWallet.toLowerCase()) {
-                    console.log("Auto-login: Wallet connected, redirecting to Home.");
                     navigate('/home');
                 }
             }
@@ -90,9 +93,8 @@ const AppContent = () => {
             if (!newAccount) {
                 localStorage.removeItem('user_wallet');
                 localStorage.removeItem('user_profile');
-                if (location.pathname !== '/') navigate('/'); 
+                if (location.pathname !== '/') navigate('/');
             } else {
-                console.log("Wallet changed, logging out security.");
                 localStorage.removeItem('user_wallet');
                 localStorage.removeItem('user_profile');
                 navigate('/');
@@ -104,39 +106,36 @@ const AppContent = () => {
         <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            
+
             <Route path="/home" element={
-                <ProtectedRoute>
-                    <Home />
-                </ProtectedRoute>
+                <ProtectedRoute><Home /></ProtectedRoute>
             } />
+
             <Route path="/data-personal" element={
-                <ProtectedRoute>
-                    <DataPersonal />
-                </ProtectedRoute>
+                <ProtectedRoute><DataPersonal /></ProtectedRoute>
             } />
 
+            {/* Pasien: lihat daftar dokter & kelola consent */}
+            <Route path="/daftar-dokter" element={
+                <PatientOnlyRoute><DaftarDokter /></PatientOnlyRoute>
+            } />
+
+            {/* Pasien & Dokter: lihat catatan dokter milik wallet sendiri (view-only) */}
             <Route path="/catatan-dokter" element={
-                <PatientDoctorRoute>
-                    <CatatanDokter />
-                </PatientDoctorRoute>
+                <PatientDoctorRoute><CatatanDokter /></PatientDoctorRoute>
             } />
 
+            {/* Dokter: kelola rekam medis pasien ber-consent */}
             <Route path="/rekam-medis" element={
-                <DoctorOnlyRoute>
-                    <RekamMedis />
-                </DoctorOnlyRoute>
+                <DoctorOnlyRoute><RekamMedis /></DoctorOnlyRoute>
             } />
 
             <Route path="/admin" element={
-                <AdminRoute>
-                    <AdminDashboard />
-                </AdminRoute>
+                <AdminRoute><AdminDashboard /></AdminRoute>
             } />
+
             <Route path="/riwayat" element={
-                <ProtectedRoute>
-                    <Riwayat />
-                </ProtectedRoute>
+                <ProtectedRoute><Riwayat /></ProtectedRoute>
             } />
         </Routes>
     );
