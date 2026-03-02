@@ -3,7 +3,7 @@ import MainLayout from "../../layouts/MainLayout";
 import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
 
-const CONTRACT_ADDRESS = "0x70292603c3eF58A92099f6f6F94696f0bb5f3938";
+const CONTRACT_ADDRESS = "0x70e01651535833E618432712999C1F4B87Ce8f74";
 const CONTRACT_ABI = [
   "function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp)",
   "function recordCount() public view returns (uint256)",

@@ -61,6 +61,11 @@ export default function DataPersonal() {
     return;
   }
 
+  const savedProfile = loadProfile();
+  if (savedProfile) {
+    setFormData(savedProfile);
+  }
+
   fetch(`http://127.0.0.1:8000/api/profile/${wallet}`)
     .then((res) => res.json())
     .then((data) => {
@@ -248,7 +253,11 @@ const handleSubmitDoctorRequest = async () => {
               </div>
               <div>
                 <p className="text-dark-30 mb-2">Alergi Herbal</p>
-                <p className="text-dark-50">{formData.alergiHerbal || "-"}</p>
+                <p className="text-dark-50">
+                  {formData.alergiHerbal?.length > 0 
+                    ? formData.alergiHerbal.join(", ") 
+                    : "-"}
+                </p>
               </div>
             </div>
 

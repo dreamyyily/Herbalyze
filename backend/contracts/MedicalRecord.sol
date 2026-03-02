@@ -19,11 +19,18 @@ contract MedicalRecordSystem {
     mapping(address => bool) public isAdmin;
     mapping(address => bool) public isApprovedUser; // Pasien/Dokter yang sudah di-ACC oleh Admin
 
+    // Consent System
+    mapping(address => mapping(address => bool)) public patientConsent;
+    mapping(address => address[]) private patientDoctors;
+    mapping(address => address[]) private doctorPatients;
+
     // Events (Untuk memudahkan pelacakan di frontend)
     event AdminAdded(address indexed newAdmin);
     event UserApproved(address indexed user);
     event UserRevoked(address indexed user);
     event MedicalRecordAdded(uint256 indexed recordId, address indexed patientAddress, address indexed uploader, uint256 timestamp);
+    event ConsentGranted(address indexed patient, address indexed doctor);
+    event ConsentRevoked(address indexed patient, address indexed doctor);
 
     // Saat contract di-deploy, pendeploy akan otomatis menjadi Admin utama
     constructor() {
@@ -61,6 +68,44 @@ contract MedicalRecordSystem {
     function revokeUser(address _user) public onlyAdmin {
         isApprovedUser[_user] = false;
         emit UserRevoked(_user);
+    }
+
+    // Consent Function
+    function grantConsent(address _doctor) public onlyApprovedUser {
+        require(!patientConsent[msg.sender][_doctor], "Consent sudah diberikan sebelumnya.");
+        patientConsent[msg.sender][_doctor] = true;
+        patientDoctors[msg.sender].push(_doctor);
+        doctorPatients[_doctor].push(msg.sender);
+        emit ConsentGranted(msg.sender, _doctor);
+    }
+
+    function revokeConsent(address _doctor) public onlyApprovedUser {
+        require(patientConsent[msg.sender][_doctor], "Consent belum pernah diberikan.");
+        patientConsent[msg.sender][_doctor] = false;
+        emit ConsentRevoked(msg.sender, _doctor);
+    }
+
+    function checkConsent(address _patient, address _doctor) public view returns (bool) {
+        return patientConsent[_patient][_doctor];
+    }
+
+    function getPatientsForDoctor(address _doctor) public view returns (address[] memory) {
+        address[] memory allPatients = doctorPatients[_doctor];
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < allPatients.length; i++) {
+            if (patientConsent[allPatients[i]][_doctor]) {
+                activeCount++;
+            }
+        }
+        address[] memory activePatients = new address[](activeCount);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < allPatients.length; i++) {
+            if (patientConsent[allPatients[i]][_doctor]) {
+                activePatients[idx] = allPatients[i];
+                idx++;
+            }
+        }
+        return activePatients;
     }
 
     // --- Fungsi Utama Rekam Medis ---

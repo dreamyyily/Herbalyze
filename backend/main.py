@@ -415,3 +415,44 @@ def get_profile(wallet: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     return jsonable_encoder(user)
+
+@app.get("/api/doctors")
+def get_doctors(db: Session = Depends(get_db)):
+    users = db.query(User).filter(User.role == "Doctor").order_by(User.name).all()
+    result = []
+    for u in users:
+        result.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "wallet_address": u.wallet_address,
+            "instansi": getattr(u, 'nama_instansi', None),
+            "spesialisasi": getattr(u, 'spesialisasi', None),
+        })
+    return {"doctors": result}
+
+
+class WalletListRequest(BaseModel):
+    wallets: list[str]
+
+@app.post("/api/patients/by-wallets")
+def get_patients_by_wallets(req: WalletListRequest, db: Session = Depends(get_db)):
+    if not req.wallets:
+        return {"patients": []}
+
+    normalized = [w.lower() for w in req.wallets]
+    users = db.query(User).filter(
+        func.lower(User.wallet_address).in_(normalized)
+    ).all()
+
+    return {
+        "patients": [
+            {
+                "id": u.id,
+                "name": u.name,
+                "email": u.email,
+                "wallet_address": u.wallet_address,
+            }
+            for u in users
+        ]
+    }
