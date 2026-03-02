@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom"; // <-- TAMBAH useLocation
+import { useNavigate, useLocation } from "react-router-dom";
 import { loadProfile } from "../../utils/storage";
 import MainLayout from "../../layouts/MainLayout";
 import SelectField from "../../components/SelectField";
@@ -21,9 +21,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
-  const location = useLocation(); // <-- UNTUK MENANGKAP PESAN SUKSES DARI HALAMAN LAIN
+  const location = useLocation(); 
   const [showProfileWarning, setShowProfileWarning] = useState(false);
-  const [showSuccessToast, setShowSuccessToast] = useState(false); // <-- STATE TOAST SUKSES
+  const [showSuccessToast, setShowSuccessToast] = useState(false); 
   
   const resultRef = useRef(null);
 
@@ -42,15 +42,12 @@ export default function Home() {
       setShowProfileWarning(true);
     }
 
-    // --- CEK APAKAH BARU SAJA BERHASIL UPDATE PROFIL DARI HALAMAN DATA PERSONAL ---
     if (location.state?.profileUpdated) {
-      setShowProfileWarning(false); // Buka gembok form
-      setShowSuccessToast(true);    // Tampilkan notifikasi sukses modern
+      setShowProfileWarning(false); 
+      setShowSuccessToast(true);  
       
-      // Hilangkan state agar tidak muncul terus saat di-refresh
       window.history.replaceState({}, document.title);
       
-      // Sembunyikan toast otomatis setelah 4 detik
       setTimeout(() => setShowSuccessToast(false), 4000); 
     }
   }, [location]);
@@ -86,7 +83,6 @@ export default function Home() {
 
   const handleSearch = async () => {
     if (showProfileWarning) {
-      // Lempar user ke Data Personal dengan membawa "Pesan Rahasia" (fromHomeLock: true)
       navigate("/data-personal", { state: { fromHomeLock: true } });
       return;
     }
@@ -136,7 +132,6 @@ export default function Home() {
     <MainLayout>
       <div className="absolute top-0 inset-x-0 h-[600px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary-10/60 via-primary-10/30 to-transparent -z-10" />
 
-      {/* --- NOTIFIKASI TOAST MELAYANG (MUNCUL JIKA SUKSES DARI DATA PERSONAL) --- */}
       {showSuccessToast && (
         <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 animate-[slideDown_0.5s_ease-out]">
           <div className="bg-white px-6 py-4 rounded-2xl shadow-2xl border border-green-100 flex items-center gap-4">
@@ -161,25 +156,24 @@ export default function Home() {
           {/* Overlay Kunci */}
           {showProfileWarning && (
             <div className="absolute inset-0 z-20 bg-white/40 backdrop-blur-[3px] flex items-center justify-center rounded-[32px]">
-               <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-gray-100 text-center max-w-md animate-fade-in transform transition-all">
-                 <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 border-[8px] border-amber-50/50">
+              <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-gray-100 text-center max-w-md animate-fade-in transform transition-all">
+                <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 border-[8px] border-amber-50/50">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                 </div>
-                 <h3 className="text-2xl font-bold text-gray-800 mb-3">Formulir Terkunci</h3>
-                 <p className="text-sm text-gray-500 mb-8 leading-relaxed px-2">
-                   Anda belum dapat mencari rekomendasi herbal sebelum melengkapi profil personal Anda.
-                 </p>
-                 <button 
-                   onClick={() => navigate("/data-personal", { state: { fromHomeLock: true } })}
-                   className="w-full bg-primary-50 text-white font-bold py-4 rounded-xl hover:bg-primary-60 shadow-lg shadow-primary-50/30 transition-all active:scale-95"
-                 >
-                   Lengkapi Profil Sekarang
-                 </button>
-               </div>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">Formulir Terkunci</h3>
+                <p className="text-sm text-gray-500 mb-8 leading-relaxed px-2">
+                  Anda belum dapat mencari rekomendasi herbal sebelum melengkapi profil personal Anda.
+                </p>
+                <button 
+                  onClick={() => navigate("/data-personal", { state: { fromHomeLock: true } })}
+                  className="w-full bg-primary-50 text-white font-bold py-4 rounded-xl hover:bg-primary-60 shadow-lg shadow-primary-50/30 transition-all active:scale-95"
+                >
+                  Lengkapi Profil Sekarang
+                </button>
+              </div>
             </div>
           )}
 
-          {/* ... Sisa form Data Medis ... */}
           <div className="bg-primary-10/40 border-b border-light-40 px-8 py-6 md:px-10 md:py-8 flex items-center justify-between">
             <h2 className="text-xl md:text-2xl font-bold text-dark-50 flex items-center gap-4">
               <div className="p-2.5 bg-gradient-to-br from-primary-40 to-primary-60 rounded-xl shadow-lg shadow-primary-20 flex-shrink-0">

@@ -4,12 +4,6 @@ import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
 import { getReadOnlyContract } from "../../utils/web3";
 
-const CONTRACT_ADDRESS = "0x88A7ABC3ebC0525761E324F1E85a64787fCdFB9d";
-const CONTRACT_ABI = [
-  "function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp)",
-  "function recordCount() public view returns (uint256)",
-];
-
 export default function CatatanDokter() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
 
