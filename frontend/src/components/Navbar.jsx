@@ -17,11 +17,6 @@ export default function Navbar() {
             🩺 Dokter Aktif
           </span>
         )}
-        {role === 'Admin' && (
-          <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">
-            👑 Administrator
-          </span>
-        )}
         {role === 'Pending_Doctor' && (
           <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full">
             ⏳ Menunggu Verifikasi

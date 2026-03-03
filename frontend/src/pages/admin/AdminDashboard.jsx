@@ -116,16 +116,10 @@ export default function AdminDashboard() {
       <div className="max-w-6xl mx-auto px-4 mt-16 pb-12 relative">
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold text-dark-50">Dashboard Administrator</h1>
-          <p className="text-dark-30 mt-2 text-sm">Verifikasi akses tenaga medis ke jaringan Blockchain.</p>
+          <p className="text-dark-30 mt-2 text-sm">Kelola dan verifikasi pengajuan akun tenaga medis.</p>
         </div>
 
-        {/* Info Box MetaMask */}
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4 mb-8 flex items-start gap-3">
-          <span className="text-xl">⚠️</span>
-          <p className="text-xs text-amber-700 leading-relaxed">
-            <strong>Penting:</strong> Pastikan MetaMask terhubung ke akun Admin (deployer) untuk melakukan <code className="bg-amber-100 px-1 rounded">approveUser()</code>.
-          </p>
-        </div>
+
 
         {/* Tabel Antrean */}
         <div className="bg-white rounded-3xl shadow-xl border border-light-40 overflow-hidden relative z-10">
@@ -166,11 +160,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Panel Approve Pasien Manual (Kode Teman Anda) */}
-        <div className="mt-8 bg-white rounded-3xl shadow-sm border border-light-40 p-8">
-           <h2 className="text-lg font-bold mb-2">Approve Wallet Pasien Manual</h2>
-           <ApprovePatientForm getSigner={getSigner} getSignerContract={getSignerContract} showToast={showToast} />
-        </div>
+
 
         {/* Toast Notification (Milik Anda) */}
         {actionResult.isOpen && (
