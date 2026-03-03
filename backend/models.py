@@ -74,8 +74,16 @@ class SearchHistory(Base):  # <--- Ganti db.Model menjadi Base
     special_conditions = Column(JSON, default=list)
     chemical_drugs = Column(JSON, default=list)
     recommendations = Column(JSON, nullable=True)
+
+    # Blockchain Integration Fields
+    blockchain_tx_hash = Column(String(66), nullable=True)       # Hash transaksi di blockchain (0x...)
+    blockchain_record_id = Column(Integer, nullable=True)        # ID record di smart contract
+    
+    # Soft Delete Flag (data tidak dihapus permanen dari DB)
+    is_deleted = Column(Boolean, default=False)
     
     # Otomatis mencatat waktu saat riwayat disimpan
     created_at = Column(DateTime, default=datetime.utcnow)
+
     def __repr__(self):
         return f"<SearchHistory {self.wallet_address} - {self.created_at}>"

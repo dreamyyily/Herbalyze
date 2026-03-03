@@ -1,8 +1,3 @@
-"""
-Migration script to add missing columns to users table
-Run this once to update your existing users table schema
-"""
-
 import os
 from dotenv import load_dotenv
 from flask import Flask
@@ -13,7 +8,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Database configuration
+
 db_user = os.getenv('DB_USER', 'postgres')
 db_password = os.getenv('DB_PASSWORD', 'password')
 db_host = os.getenv('DB_HOST', 'localhost')
@@ -26,10 +21,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 def migrate_users_table():
-    """Add missing columns to users table if they don't exist"""
     try:
         with app.app_context():
-            # Connect directly to PostgreSQL to run ALTER TABLE commands
             conn = psycopg2.connect(
                 host=db_host,
                 port=db_port,
@@ -42,9 +35,6 @@ def migrate_users_table():
             print("=" * 60)
             print("Migrating users table...")
             print("=" * 60)
-            
-            # Fix: If old 'password' column exists and is NOT NULL, make it nullable
-            # (App uses password_hash only; 'password' causes NotNullViolation)
             cursor.execute("""
                 SELECT column_name, is_nullable 
                 FROM information_schema.columns 
@@ -59,7 +49,6 @@ def migrate_users_table():
                 """)
                 print("✅ password column is now nullable")
             
-            # Check and add password_hash column
             cursor.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -75,7 +64,6 @@ def migrate_users_table():
             else:
                 print("✅ password_hash column already exists")
             
-            # Check and add created_at column
             cursor.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -91,7 +79,6 @@ def migrate_users_table():
             else:
                 print("✅ created_at column already exists")
             
-            # Check and add is_profile_complete column
             cursor.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -106,8 +93,7 @@ def migrate_users_table():
                 print("✅ is_profile_complete column added")
             else:
                 print("✅ is_profile_complete column already exists")
-            
-            # Check and add role column
+        
             cursor.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -123,7 +109,6 @@ def migrate_users_table():
             else:
                 print("✅ role column already exists")
 
-            # Check and add nonce column
             cursor.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -138,8 +123,7 @@ def migrate_users_table():
                 print("✅ nonce column added")
             else:
                 print("✅ nonce column already exists")
-            
-            # Commit changes
+        
             conn.commit()
             cursor.close()
             conn.close()

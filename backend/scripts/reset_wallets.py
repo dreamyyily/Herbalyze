@@ -5,6 +5,6 @@ with app.app_context():
     print(f"Mengosongkan wallet address dari {len(users)} akun untuk reset sesi testing.")
     for u in users:
         u.wallet_address = None
-        u.role = 'Approved' # Make sure all have Approved status just in case
+        u.role = 'Approved'
     db.session.commit()
     print("Selesai dikosongkan.")

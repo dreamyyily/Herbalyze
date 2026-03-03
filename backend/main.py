@@ -16,7 +16,7 @@ import shutil
 import traceback
 
 from db import get_db, Base, engine
-from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition
+from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory
 from fastapi.encoders import jsonable_encoder
 from blockchain_service import approve_wallet_on_chain
 
@@ -468,16 +468,84 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
 def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
     try:
         result = db.execute(text("""
-            SELECT id, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at
-            FROM search_history WHERE wallet_address = :wallet ORDER BY created_at DESC
+            SELECT id, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations,
+                   created_at, blockchain_tx_hash, blockchain_record_id
+            FROM search_history 
+            WHERE wallet_address = :wallet AND (is_deleted = FALSE OR is_deleted IS NULL)
+            ORDER BY created_at DESC
         """), {"wallet": wallet_address.lower()}).fetchall()
         
         return [{
             "id": r[0], "diagnoses": r[1], "symptoms": r[2], "special_conditions": r[3],
             "chemical_drugs": r[4], "recommendations": r[5],
-            "created_at": r[6].isoformat() if r[6] else None
+            "created_at": r[6].isoformat() if r[6] else None,
+            "blockchain_tx_hash": r[7],
+            "blockchain_record_id": r[8],
+            "is_on_blockchain": r[7] is not None
         } for r in result]
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ======================== BLOCKCHAIN HISTORY ENDPOINTS ========================
+
+class UpdateBlockchainRequest(BaseModel):
+    history_id: int
+    tx_hash: str
+    record_id: int
+
+@app.post("/api/history/save-to-blockchain")
+def save_history_to_blockchain(req: UpdateBlockchainRequest, db: Session = Depends(get_db)):
+    """Update tx_hash setelah pasien berhasil menyimpan ke blockchain dari frontend"""
+    try:
+        record = db.query(SearchHistory).filter(SearchHistory.id == req.history_id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
+        if record.blockchain_tx_hash:
+            raise HTTPException(status_code=400, detail="Riwayat ini sudah disimpan ke blockchain")
+        
+        record.blockchain_tx_hash = req.tx_hash
+        record.blockchain_record_id = req.record_id
+        db.commit()
+        db.refresh(record)
+        
+        return {
+            "message": "Data blockchain berhasil disimpan",
+            "history_id": record.id,
+            "tx_hash": record.blockchain_tx_hash,
+            "record_id": record.blockchain_record_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/history/{history_id}")
+def delete_history(history_id: int, wallet_address: str, db: Session = Depends(get_db)):
+    """Soft delete riwayat — data tetap ada di DB, hanya tersembunyi dari tampilan"""
+    try:
+        record = db.query(SearchHistory).filter(
+            SearchHistory.id == history_id,
+            SearchHistory.wallet_address == wallet_address.lower()
+        ).first()
+        
+        if not record:
+            raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
+        
+        record.is_deleted = True
+        db.commit()
+        
+        return {
+            "message": "Riwayat berhasil dihapus dari tampilan",
+            "note": "Data yang sudah tersimpan di blockchain tetap permanen dan tidak dapat dihapus",
+            "was_on_blockchain": record.blockchain_tx_hash is not None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     
 # data profile

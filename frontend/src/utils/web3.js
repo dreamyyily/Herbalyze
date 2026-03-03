@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-export const CONTRACT_ADDRESS = "0x7A153E2305e79a750e3621630D9B76C090Db926D";
+export const CONTRACT_ADDRESS = "0x70d3a58C6BCf87Dd13eFC58a5C69c2A0Df1eC009";
 export const CONTRACT_ABI = [
   // === Role Management (Admin) ===
   "function approveUser(address _user) public",
@@ -49,3 +49,73 @@ export const getSigner = async () => {
   await provider.send("eth_requestAccounts", []);
   return provider.getSigner();
 };
+
+/**
+ * Menyimpan data riwayat konsultasi ke blockchain.
+ * @param {string} patientWallet - Alamat wallet pasien
+ * @param {object} historyData - Data riwayat (diagnoses, symptoms, recommendations, dll)
+ * @returns {{ txHash: string, recordId: number }}
+ */
+export const saveHistoryToBlockchain = async (patientWallet, historyData) => {
+  // Validasi wallet address
+  if (!patientWallet || typeof patientWallet !== "string") {
+    throw new Error("Alamat wallet tidak valid. Pastikan wallet sudah terhubung.");
+  }
+
+  // Convert ke checksum address (format yang benar untuk ethers & MetaMask)
+  // Ganache menyimpan lowercase, tapi MetaMask butuh checksum format
+  let checksumWallet;
+  try {
+    checksumWallet = ethers.utils.getAddress(patientWallet.trim());
+  } catch {
+    throw new Error(`Format wallet tidak valid: ${patientWallet}`);
+  }
+
+  const contract = await getSignerContract();
+
+  // Bungkus data sebagai JSON string — hanya ambil field penting agar tidak terlalu besar
+  const payload = JSON.stringify({
+    source: "Herbalyze",
+    version: "1.0",
+    timestamp: new Date().toISOString(),
+    diagnoses: historyData.diagnoses || [],
+    symptoms: historyData.symptoms || [],
+    special_conditions: historyData.special_conditions || [],
+    recommendations: (historyData.recommendations || []).map((group) => ({
+      group_type: group.group_type,
+      group_name: group.group_name,
+      herbs: (group.herbs || []).map((h) => ({ name: h.name, latin: h.latin })),
+    })),
+  });
+
+  // Panggil smart contract dengan checksum address
+  const tx = await contract.addMedicalRecord(checksumWallet, payload);
+  const receipt = await tx.wait(); // Tunggu sampai di-mine
+
+  // Ambil record ID dari event — dengan fallback ke recordCount jika events kosong (Ganache quirk)
+  let recordId = null;
+  try {
+    const event = (receipt.events || []).find((e) => e.event === "MedicalRecordAdded");
+    if (event && event.args && event.args.recordId) {
+      recordId = event.args.recordId.toNumber();
+    } else {
+      // Fallback: ambil dari smart contract langsung
+      const count = await contract.recordCount();
+      recordId = count.toNumber();
+    }
+  } catch (eventError) {
+    console.warn("Gagal membaca event, menggunakan fallback recordCount:", eventError);
+    try {
+      const count = await contract.recordCount();
+      recordId = count.toNumber();
+    } catch {
+      recordId = null;
+    }
+  }
+
+  return {
+    txHash: receipt.transactionHash,
+    recordId: recordId,
+  };
+};
+
