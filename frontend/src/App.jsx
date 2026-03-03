@@ -129,17 +129,14 @@ const AppContent = () => {
                 <ProtectedRoute><DataPersonal /></ProtectedRoute>
             } />
 
-            {/* Pasien: lihat daftar dokter & kelola consent */}
             <Route path="/daftar-dokter" element={
-                <PatientOnlyRoute><DaftarDokter /></PatientOnlyRoute>
+                <PatientDoctorRoute><DaftarDokter /></PatientDoctorRoute>
             } />
 
-            {/* Pasien & Dokter: lihat catatan dokter milik wallet sendiri (view-only) */}
             <Route path="/catatan-dokter" element={
                 <PatientDoctorRoute><CatatanDokter /></PatientDoctorRoute>
             } />
 
-            {/* Dokter: kelola rekam medis pasien ber-consent */}
             <Route path="/rekam-medis" element={
                 <DoctorOnlyRoute><RekamMedis /></DoctorOnlyRoute>
             } />

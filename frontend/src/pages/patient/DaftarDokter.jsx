@@ -22,11 +22,17 @@ export default function DaftarDokter() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Gagal mengambil daftar dokter");
 
-      setDoctors(data.doctors || []);
+    const filteredDoctorList = (data.doctors || []).filter(
+      (doc) =>
+        doc.wallet_address &&
+        doc.wallet_address.toLowerCase() !== userWallet
+    );
+
+    setDoctors(filteredDoctorList);
 
       // cek consent
       if (userWallet && data.doctors?.length > 0) {
-        await checkAllConsents(data.doctors);
+        await checkAllConsents(filteredDoctorList);
       }
     } catch (err) {
       console.error("Gagal fetch daftar dokter:", err);
