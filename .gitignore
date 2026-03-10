@@ -13,3 +13,7 @@ backend/venv/
 *.csv
 
 node_modules/
+
+*.safetensors
+backend/chroma_db/
+__pycache__/

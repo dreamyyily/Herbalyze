@@ -9,6 +9,7 @@ import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import Riwayat from "./pages/patient/Riwayat.jsx";
+import AiSearch from "./pages/patient/AiSearch.jsx";
 import { checkWalletConnection, listenToAccountChanges } from "./utils/web3Helpers";
 
 const ProtectedRoute = ({ children }) => {
@@ -144,6 +145,11 @@ const AppContent = () => {
             <Route path="/riwayat" element={
                 <ProtectedRoute><Riwayat /></ProtectedRoute>
             } />
+
+            <Route path="/ai-search" element={
+                <ProtectedRoute><AiSearch /></ProtectedRoute>
+            } />
+            
         </Routes>
     );
 };

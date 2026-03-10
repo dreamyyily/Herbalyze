@@ -98,8 +98,10 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                     isOpen ? 'bg-primary-10/40' : 'bg-light-10 hover:bg-light-20/80'
                   }`}
                 >
+                  {/* === BAGIAN KIRI: Ikon & Judul === */}
                   <div className="flex items-center gap-4 sm:gap-6 text-left">
-                    {/* Ikon Semantik: Indigo untuk Diagnosis, Oranye untuk Gejala */}
+                    
+                    {/* Ikon Semantik */}
                     <div className={`flex items-center justify-center flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-sm ${
                       isDiagnosis ? 'bg-indigo-100 text-indigo-600' : 'bg-orange-100 text-orange-600'
                     }`}>
@@ -110,24 +112,34 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                       )}
                     </div>
                     
+                    {/* Teks Judul */}
                     <div>
                       <h4 className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1 ${
                         isDiagnosis ? 'text-indigo-500' : 'text-orange-500'
                       }`}>
                         {group.group_type}
                       </h4>
-                      <h3 className="text-xl sm:text-2xl font-extrabold text-dark-50 leading-tight">
-                        {group.group_name}
-                      </h3>
+                      
+                      {/* DESAIN HEADER BARU YANG ELEGAN & RAPI */}
+                      <div className="flex flex-col">
+                        <h3 className="text-xl sm:text-2xl font-extrabold text-dark-50 leading-tight capitalize">
+                          {group.group_name.replace("Terkait: ", "")}
+                        </h3>
+                        {group.detected_from && (
+                          <span className="text-sm font-medium text-dark-30 mt-1 sm:mt-1.5 italic">
+                            Berdasarkan keluhan: "{group.detected_from}"
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
+                  </div> {/* <--- INI DIA TAG PENUTUP YANG HILANG TADI! */}
+
+                  {/* === BAGIAN KANAN: Badge Jumlah & Panah === */}
                   <div className="flex items-center gap-3 sm:gap-5">
-                    {/* Badge Jumlah Tanaman */}
                     <span className="hidden sm:flex items-center justify-center px-4 py-1.5 bg-light-10 border border-light-40 rounded-full text-sm font-bold text-dark-30 shadow-sm">
                       {group.herbs.length} Tanaman
                     </span>
-                    {/* Indikator Panah (Berputar saat terbuka) */}
                     <div className={`flex items-center justify-center w-10 h-10 rounded-full border transition-all duration-300 ${
                       isOpen ? 'bg-primary-40 border-primary-40 text-light-10 rotate-180 shadow-md' : 'bg-light-10 border-light-40 text-dark-20'
                     }`}>

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from pydantic import BaseModel
-from passlib.context import CryptContext
+import bcrypt
 from eth_account import Account
 from eth_account.messages import encode_defunct
 import secrets
@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi.responses import JSONResponse
 import os
 import traceback
+import re
 
 from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory
@@ -68,13 +69,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def get_password_hash(password: str) -> str:
+    # Mengacak password menggunakan bcrypt bawaan murni
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Mengecek kecocokan password
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def generate_random_nonce():
     return f"Herbalyze Authentication\n\nPlease sign this message to authenticate with your wallet.\n\nSecret Nonce: {secrets.token_hex(16)}"
@@ -483,6 +488,209 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+# Class request terpisah agar rapi
+class HybridRequest(BaseModel):
+    wallet_address: str
+    query_text: str
+    kondisi: list[str]
+    obat_kimia: list[str]
+
+@app.post("/api/recommend_hybrid")
+async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
+    print(f"\n{'='*60}")
+    print(f"🚀 [HYBRID ENGINE] MEMULAI ANALISIS REKOMENDASI")
+    print(f"📥 Input Teks      : '{req.query_text}'")
+    
+    try:
+        query_clean = req.query_text.strip().lower()
+        if not query_clean:
+            raise HTTPException(status_code=400, detail="Teks keluhan kosong")
+
+        condition_mapping = {
+            "Ibu hamil": "hamil",
+            "Ibu menyusui": "menyusui",
+            "Anak di bawah lima tahun": "anak di bawah 5 tahun"
+        }
+        sel_cond = [condition_mapping.get(c, c) for c in req.kondisi if c != "Tidak ada"]
+
+        def get_safe_herbs(h_names, conditions):
+            if not h_names or not conditions: return list(h_names)
+            result_db = db.execute(text("""
+                SELECT herbal_name FROM herbal_special_conditions 
+                WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
+            """), {"names": list(h_names), "conds": list(conditions)}).fetchall()
+            unsafe = {row[0] for row in result_db}
+            return [h for h in h_names if h not in unsafe]
+
+        def get_details(h_names):
+            if not h_names: return []
+            result_db = db.execute(text("""
+                SELECT herbal_name, latin_name, image_url, preparation, part_used, part_image_url, source_label, source
+                FROM herbal_diagnoses WHERE herbal_name = ANY(:names)
+                UNION
+                SELECT herbal_name, latin_name, image_url, preparation, part_used, part_image_url, source_label, source
+                FROM herbal_symptoms WHERE herbal_name = ANY(:names)
+            """), {"names": list(h_names)}).fetchall()
+            res, seen = [], set()
+            for r in result_db:
+                if r[0] not in seen:
+                    res.append({
+                        "name": r[0], "latin": r[1], "image": r[2], "preparation": r[3],
+                        "part": r[4], "part_image": r[5], "source_label": r[6], "source_link": r[7]
+                    })
+                    seen.add(r[0])
+            return res
+
+        def save_history(result_group):
+            try:
+                db.execute(text("""
+                    INSERT INTO search_history 
+                    (wallet_address, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at)
+                    VALUES (:wallet, :diag, :symp, :cond, :drug, :res, NOW())
+                """), {
+                    "wallet": req.wallet_address.lower(),
+                    "diag": json.dumps([f"Hybrid: {req.query_text[:50]}..."]), 
+                    "symp": json.dumps([]),
+                    "cond": json.dumps(req.kondisi),
+                    "drug": json.dumps(req.obat_kimia),
+                    "res": json.dumps(result_group)
+                })
+                db.commit()
+                print(f"   💾 Riwayat Hybrid berhasil disimpan.")
+            except Exception as e:
+                db.rollback()
+                print(f"   ⚠️ Gagal simpan riwayat: {e}")
+
+        # Pembersihan Teks (Stopwords) DILAKUKAN DI AWAL
+        stop_words = ["pasien", "mengeluhkan", "gejala", "diagnosis", "yang", "dan", "di", "ke", "dari", "ini", "itu", "nya", "ialah", "adalah", "terdapat", "alami", "mengidap", "penyakit", "mengalami", "juga", "seharusnya"]        
+        # Memecah input
+        raw_chunks = re.split(r'[.,;/]|\bdan\b|\batau\b', query_clean)
+        
+        # Membersihkan setiap pecahan kalimat
+        clean_chunks = []
+        for chunk in raw_chunks:
+            clean_chunk = chunk
+            for word in stop_words:
+                clean_chunk = re.sub(rf'\b{word}\b', '', clean_chunk)
+            clean_chunk = re.sub(r'[^\w\s]', '', clean_chunk)
+            clean_chunk = " ".join(clean_chunk.split())
+            if len(clean_chunk) > 2:
+                clean_chunks.append(clean_chunk)
+
+       # ==========================================================
+        # LAPIS 1: EXACT MATCH (MENGGUNAKAN TRUE EXACT MATCH)
+        # ==========================================================
+        print(f"\n🔍 [LAPIS 1] Mencari kecocokan pasti (Exact Match) di DB...")
+        
+        final_result_groups = []
+        unmatched_chunks = []
+        
+        for clean_chunk in clean_chunks:
+            print(f"   ➤ Cek Exact Match untuk: '{clean_chunk}'")
+            
+            # PERBAIKAN: Hapus tanda f"%...%" agar menjadi True Exact Match
+            # Tambahkan TRIM() untuk berjaga-jaga jika ada spasi berlebih di database Anda
+            exact_results_db = db.execute(text("""
+                SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE :q
+                UNION
+                SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE :q
+            """), {"q": clean_chunk}).fetchall() # <--- Perhatikan bagian ini, tanda % dihilangkan
+            
+            chunk_herbs = {row[0] for row in exact_results_db}
+            
+            if chunk_herbs:
+                print(f"      ✅ Berhasil ({len(chunk_herbs)} tanaman)")
+                safe_herbs = get_safe_herbs(chunk_herbs, sel_cond)
+                if safe_herbs:
+                    final_details = get_details(safe_herbs)
+                    if final_details:
+                        final_result_groups.append({
+                            "group_type": "Pencocokan Pasti", 
+                            "group_name": f"Terkait: {clean_chunk.capitalize()}", 
+                            "herbs": final_details
+                        })
+            else:
+                print(f"      ❌ Gagal")
+                unmatched_chunks.append(clean_chunk)
+       # ==========================================================
+        # LAPIS 2: AI MENCARI NAMA PENYAKIT BAKU (SEMANTIC CONCEPT MAPPING)
+        # ==========================================================
+        if unmatched_chunks:
+            print(f"\n⚠️ Mengaktifkan Lapis 2: AI SBERT untuk menebak nama penyakit...")
+            from sentence_transformers import SentenceTransformer
+            import chromadb
+
+            model = SentenceTransformer('intfloat/multilingual-e5-small')
+            chroma_client = chromadb.PersistentClient(path="./chroma_db")
+            collection = chroma_client.get_collection(name="med_labels")
+            
+            # --- TAMBAHAN BARU: Keranjang untuk mengelompokkan penyakit ---
+            # Format: { "Bisul": ["infeksi furunkel", "benjolan bernanah"], "Demam": [...] }
+            ai_detected_diseases = {}
+
+            for clean_chunk in unmatched_chunks:
+                print(f"   ➤ AI Menganalisis Keluhan: '{clean_chunk}'")
+                chunk_vector = model.encode([f"query: {clean_chunk}"]).tolist()
+                
+                search_results = collection.query(
+                    query_embeddings=chunk_vector,
+                    n_results=3, 
+                    include=["documents", "distances", "metadatas"]
+                )
+                
+                if search_results and search_results['distances'] and search_results['distances'][0]:
+                    best_label = None
+                    for i, distance in enumerate(search_results['distances'][0]):
+                        similarity_score = (1 - distance) * 100
+                        label_penyakit = search_results['metadatas'][0][i]['baku']
+                        
+                        if similarity_score >= 82.0 and best_label is None:
+                            best_label = label_penyakit
+                            print(f"      ✅ AI YAKIN! Keluhan '{clean_chunk}' maksudnya adalah = '{best_label}'")
+                    
+                    # --- TAMBAHAN BARU: Masukkan keluhan ke keranjang penyakit yang sama ---
+                    if best_label:
+                        if best_label not in ai_detected_diseases:
+                            ai_detected_diseases[best_label] = []
+                        ai_detected_diseases[best_label].append(clean_chunk)
+
+            # --- SETELAH SEMUA KELUHAN DIANALISIS, BARU CARI HERBALNYA ---
+            for label, chunks_list in ai_detected_diseases.items():
+                gabungan_keluhan = ", ".join(chunks_list) # Gabungkan: "infeksi furunkel, benjolan bernanah"
+                
+                ai_results_db = db.execute(text("""
+                    SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE :q
+                    UNION
+                    SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE :q
+                """), {"q": label}).fetchall()
+                
+                chunk_ai_herbs = {row[0] for row in ai_results_db}
+                if chunk_ai_herbs:
+                    safe_ai_herbs = get_safe_herbs(chunk_ai_herbs, sel_cond)
+                    if safe_ai_herbs:
+                        final_ai_details = get_details(safe_ai_herbs)
+                        if final_ai_details:
+                            final_result_groups.append({
+                                "group_type": "Analisis AI", 
+                                "group_name": label, # Sekarang namanya cukup "Bisul" saja
+                                "detected_from": gabungan_keluhan, # Kita kirim keluhannya secara terpisah ke FE
+                                "herbs": final_ai_details
+                            })
+                            
+        if final_result_groups:
+            save_history(final_result_groups)
+            print(f"{'='*60}\n")
+            return final_result_groups
+
+        print(f"   ❌ Sistem gagal menemukan kecocokan yang aman.")
+        print(f"{'='*60}\n")
+        return []
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
 @app.get("/api/history/{wallet_address}")
 def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
     try:

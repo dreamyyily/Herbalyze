@@ -1,0 +1,65 @@
+============================================================
+🚀 [HYBRID ENGINE] MEMULAI ANALISIS REKOMENDASI
+📥 Input Teks      : 'Diagnosis nya ialah berat badan berlebohan dari yang seharusnya. juga terdapat bentolan bernanah di kaki nya. Pasien juga mengeluhkan: gejala yang di alami ialah badan panas'
+
+🔍 [LAPIS 1] Mencari kecocokan pasti (Exact Match) di DB...
+   ➤ Cek Exact Match untuk: 'berat badan berlebohan'
+      ❌ Gagal
+   ➤ Cek Exact Match untuk: 'bentolan bernanah kaki'
+      ❌ Gagal
+   ➤ Cek Exact Match untuk: 'badan panas'
+      ❌ Gagal
+
+⚠️ Mengaktifkan Lapis 2: AI SBERT untuk kata yang tidak ditemukan: ['berat badan berlebohan', 'bentolan bernanah kaki',, 'badan panas']
+Loading weights: 100%|███████████████████| 199/199 [00:00<00:00, 3424.30it/s, Materializing param=pooler.dense.weight]
+BertModel LOAD REPORT from: intfloat/multilingual-e5-small
+Key                     | Status     |  |
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  |
+
+Notes:
+- UNEXPECTED    :can be ignored when loading from different task/architecture; not ok if you expect identical arch.    
+   ➤ AI Menganalisis: 'berat badan berlebohan'
+      [LOG DEBUG] 3 Skor Teratas di Otak AI:
+      -> Biji chia            : 86.61%
+      -> Bilberry             : 85.65%
+      -> Bluberi              : 85.54%
+   ➤ AI Menganalisis: 'bentolan bernanah kaki'
+      [LOG DEBUG] 3 Skor Teratas di Otak AI:
+      -> Anggur-angguran      : 84.46%
+      -> Akalifa              : 84.38%
+      -> Bawang merah         : 83.88%
+   ➤ AI Menganalisis: 'badan panas'
+      [LOG DEBUG] 3 Skor Teratas di Otak AI:
+      -> Arnica               : 87.44%
+      -> Black cohosh         : 87.37%
+      -> Black cohosh         : 87.37%
+      ✅ DITERIMA AI | Skor:  87.10% | Herbal: Black cohosh
+      ✅ DITERIMA AI | Skor:  86.54% | Herbal: Aren
+      ✅ DITERIMA AI | Skor:  86.52% | Herbal: Biji chia
+      ✅ DITERIMA AI | Skor:  86.33% | Herbal: Black cohosh
+      ✅ DITERIMA AI | Skor:  85.98% | Herbal: Bunga Kuku Macan
+      ✅ DITERIMA AI | Skor:  85.96% | Herbal: Kamomil
+      ✅ DITERIMA AI | Skor:  85.84% | Herbal: Bit
+      ✅ DITERIMA AI | Skor:  85.84% | Herbal: Biwa
+      ✅ DITERIMA AI | Skor:  85.84% | Herbal: Bunga Pancur
+      ✅ DITERIMA AI | Skor:  85.83% | Herbal: Bangun-bangun
+      ✅ DITERIMA AI | Skor:  85.74% | Herbal: Arum Dalu
+      ✅ DITERIMA AI | Skor:  85.73% | Herbal: Bulbine frutescens
+      ✅ DITERIMA AI | Skor:  85.68% | Herbal: Arnica
+      ✅ DITERIMA AI | Skor:  85.61% | Herbal: Biji chia
+      ✅ DITERIMA AI | Skor:  85.59% | Herbal: Kacang Lentil Hitam
+      ✅ DITERIMA AI | Skor:  85.51% | Herbal: Bayam Duri
+   💾 Riwayat Hybrid berhasil disimpan.
+============================================================
+
+PS D:\Herbalyze\backend> python test_akurasi.py   
+⏳ Memuat AI Herbal Lokal yang baru dilatih...
+Loading weights: 100%|███████████████████| 199/199 [00:00<00:00, 1130.61it/s, Materializing param=pooler.dense.weight]
+
+🎯 HASIL PENGUJIAN AKURASI MODEL LOKAL (FINE-TUNED)
+------------------------------------------------------------
+[badan saya panas dan meriang] vs [demam] -> Skor: 93.73%
+[berat badan berlebohan] vs [obesitas] -> Skor: 94.07%
+[ada bentolan bernanah di kulit] vs [bisul] -> Skor: 93.52%
+------------------------------------------------------------
