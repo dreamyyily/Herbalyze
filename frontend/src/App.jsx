@@ -41,7 +41,6 @@ const AdminRoute = ({ children }) => {
     return children;
 };
 
-// Hanya Dokter
 const DoctorOnlyRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
@@ -51,8 +50,6 @@ const DoctorOnlyRoute = ({ children }) => {
     return children;
 };
 
-// --- PERBAIKAN LOGIKA AKSES PASIEN ---
-// Hanya Pasien (Termasuk yang sedang Pending atau Rejected)
 const PatientOnlyRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
@@ -68,7 +65,6 @@ const PatientOnlyRoute = ({ children }) => {
     return children;
 };
 
-// Pasien (Termasuk Pending/Rejected) & Dokter
 const PatientDoctorRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();

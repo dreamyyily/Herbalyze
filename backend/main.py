@@ -1,6 +1,5 @@
 import json
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Request
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
@@ -12,13 +11,43 @@ import secrets
 from typing import Optional
 from fastapi.responses import JSONResponse
 import os
-import shutil
 import traceback
 
 from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory
 from fastapi.encoders import jsonable_encoder
 from blockchain_service import approve_wallet_on_chain
+
+from dotenv import load_dotenv
+import requests
+
+load_dotenv()
+PINATA_JWT = os.getenv("PINATA_JWT")
+
+print("PINATA_JWT loaded:", PINATA_JWT[:20])
+
+# PINATA
+def upload_to_ipfs(file):
+    allowed_types = ["application/pdf", "image/jpeg", "image/png", "application/octet-stream"]
+
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Format file tidak didukung")
+
+    url = "https://api.pinata.cloud/pinning/pinFileToIPFS"
+    headers = {"Authorization": f"Bearer {PINATA_JWT}"}
+
+    file.file.seek(0)  
+    file_bytes = file.file.read()
+
+    files = {"file": (file.filename, file_bytes, file.content_type)}
+    response = requests.post(url, files=files, headers=headers, timeout=30)
+
+    if response.status_code != 200:
+        print("Pinata error:", response.text)
+        raise Exception("Upload ke IPFS gagal")
+
+    cid = response.json()["IpfsHash"]
+    return cid
 
 Base.metadata.create_all(bind=engine)
 
@@ -40,9 +69,6 @@ app.add_middleware(
 )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-os.makedirs("uploads/str_documents", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -192,17 +218,17 @@ async def request_doctor(
         user = db.query(User).filter(func.lower(User.wallet_address) == wallet_address.lower()).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-
-        os.makedirs("uploads/str_documents", exist_ok=True)
         
-        file_path = f"uploads/str_documents/{wallet_address}_{file_dokumen.filename}"
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file_dokumen.file, buffer)
+        print("Uploading file:", file_dokumen.filename)
+        print("Content type:", file_dokumen.content_type)
+        
+        cid = upload_to_ipfs(file_dokumen)
+
+        user.dokumen_str_path = cid
 
         user.role = "Pending_Doctor"
         user.nomor_str = nomor_str
         user.nama_instansi = nama_instansi
-        user.dokumen_str_path = file_path
         
         db.commit()
         db.refresh(user)
@@ -222,7 +248,7 @@ def get_pending_doctors(db: Session = Depends(get_db)):
         d = u.to_dict()
         d["nomor_str"] = u.nomor_str
         d["nama_instansi"] = u.nama_instansi
-        d["dokumen_url"] = f"http://localhost:8000/{u.dokumen_str_path.replace('\\', '/')}" if u.dokumen_str_path else None
+        d["dokumen_url"] = f"https://gateway.pinata.cloud/ipfs/{u.dokumen_str_path}" if u.dokumen_str_path else None
         result.append(d)
     return result
 
@@ -269,14 +295,7 @@ def reject_doctor(req: RejectDoctorRequest, db: Session = Depends(get_db)):
     # Opsional & Disarankan: Hapus data pengajuannya agar bersih jika ingin daftar ulang
     user.nomor_str = None
     user.nama_instansi = None
-    
-    # Hapus file PDF fisik dari server untuk menghemat ruang
-    if user.dokumen_str_path and os.path.exists(user.dokumen_str_path):
-        try:
-            os.remove(user.dokumen_str_path)
-        except Exception as e:
-            print(f"Gagal menghapus file STR: {e}")
-            
+
     user.dokumen_str_path = None
     
     db.commit()
@@ -469,7 +488,7 @@ def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
     try:
         result = db.execute(text("""
             SELECT id, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations,
-                   created_at, blockchain_tx_hash, blockchain_record_id
+                created_at, blockchain_tx_hash, blockchain_record_id
             FROM search_history 
             WHERE wallet_address = :wallet AND (is_deleted = FALSE OR is_deleted IS NULL)
             ORDER BY created_at DESC

@@ -137,6 +137,7 @@ export default function AdminDashboard() {
                     <th className="py-4 px-4">Nama Akun</th>
                     <th className="py-4 px-4">Wallet</th>
                     <th className="py-4 px-4">STR</th>
+                    <th className="py-4 px-4">Dokumen</th>
                     <th className="py-4 px-4 text-center">Aksi</th>
                   </tr>
                 </thead>
@@ -146,6 +147,16 @@ export default function AdminDashboard() {
                       <td className="py-4 px-4 font-medium text-sm">{doc.name || "Anonim"}</td>
                       <td className="py-4 px-4 font-mono text-[10px] text-gray-400">{doc.wallet_address.substring(0,10)}...</td>
                       <td className="py-4 px-4 text-sm">{doc.nomor_str}</td>
+                      <td className="py-4 px-4">
+                        <a
+                          href={doc.dokumen_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline text-xs"
+                        >
+                          Lihat STR
+                        </a>
+                      </td>
                       <td className="py-4 px-4 flex justify-center gap-2">
                         <button onClick={() => {setSelectedDoctor({walletAddress: doc.wallet_address, nama: doc.name}); setIsRejectModalOpen(true);}} className="text-red-600 bg-red-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-100">Tolak</button>
                         <button onClick={() => {setSelectedDoctor({walletAddress: doc.wallet_address, nama: doc.name}); setIsApproveModalOpen(true);}} disabled={approving[doc.wallet_address]} className="bg-primary-40 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50">
