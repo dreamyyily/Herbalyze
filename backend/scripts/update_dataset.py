@@ -7,6 +7,7 @@ import shutil
 import pandas as pd
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
+import warnings
 
 load_dotenv()
 
@@ -129,14 +130,17 @@ def reset_chromadb():
     print("="*55)
 
     if os.path.exists(CHROMA_PATH):
-        shutil.rmtree(CHROMA_PATH)
-        print(f"[OK] Folder ChromaDB lama dihapus: {CHROMA_PATH}")
+        try:
+            shutil.rmtree(CHROMA_PATH)
+            print(f"[OK] Folder ChromaDB lama dihapus: {CHROMA_PATH}")
+        except Exception as e:
+            print(f"[WARN] Tidak bisa menghapus {CHROMA_PATH}: {e}")
     else:
         print(f"[INFO] Folder ChromaDB tidak ditemukan, skip.")
 
 def rebuild_chromadb():
     print("\n" + "="*55)
-    print("STEP 4 - REBUILD CHROMADB DARI DATA TERBARU")
+    print("STEP 4 - REBUILD CHROMADB (DATA HERBAL)")
     print("="*55)
 
     try:
@@ -144,139 +148,130 @@ def rebuild_chromadb():
         import chromadb
 
         engine = create_engine(DATABASE_URL)
-        print("[OK] Terhubung ke PostgreSQL via SQLAlchemy")
+        print("[OK] Terhubung ke PostgreSQL")
 
-        print("Membaca tabel herbal_symptoms...")
-        df_symp = pd.read_sql_query(
-            "SELECT symptom, herbal_name, latin_name, preparation, part_used FROM herbal_symptoms",
-            engine
-        )
+        df_symp = pd.read_sql_query("SELECT symptom, herbal_name, latin_name, preparation, part_used FROM herbal_symptoms", engine)
         df_symp.fillna("", inplace=True)
 
-        print("Membaca tabel herbal_diagnoses...")
-        df_diag = pd.read_sql_query(
-            "SELECT diagnosis, herbal_name, latin_name, preparation, part_used FROM herbal_diagnoses",
-            engine
-        )
+        df_diag = pd.read_sql_query("SELECT diagnosis, herbal_name, latin_name, preparation, part_used FROM herbal_diagnoses", engine)
         df_diag.fillna("", inplace=True)
 
-        print("Membaca tabel herbal_special_conditions...")
-        df_cond_preview = pd.read_sql_query(
-            "SELECT * FROM herbal_special_conditions LIMIT 1", engine
-        )
-        print(f"   Kolom tersedia: {list(df_cond_preview.columns)}")
-
-        herbal_col = None
-        for col in df_cond_preview.columns:
-            if 'herbal' in col.lower() or 'hebal' in col.lower():
-                herbal_col = col
-                break
+        df_cond_preview = pd.read_sql_query("SELECT * FROM herbal_special_conditions LIMIT 1", engine)
+        herbal_col = next((col for col in df_cond_preview.columns if 'herbal' in col.lower() or 'hebal' in col.lower()), None)
 
         if herbal_col:
             select_herbal = f'"{herbal_col}" as herbal_name' if herbal_col != 'herbal_name' else 'herbal_name'
-            df_cond = pd.read_sql_query(
-                f"SELECT {select_herbal}, special_condition, description FROM herbal_special_conditions",
-                engine
-            )
+            df_cond = pd.read_sql_query(f"SELECT {select_herbal}, special_condition, description FROM herbal_special_conditions", engine)
         else:
-            print("   [WARN] Kolom herbal tidak ditemukan di tabel kondisi khusus, di-skip.")
             df_cond = pd.DataFrame(columns=['herbal_name', 'special_condition', 'description'])
         df_cond.fillna("", inplace=True)
 
-        print(f"[OK] Data: {len(df_symp)} symptoms, {len(df_diag)} diagnoses, {len(df_cond)} kondisi khusus")
-
         records = []
         for _, row in df_symp.iterrows():
-            records.append({
-                "symptom": row.get('symptom',''), "diagnosis": "", "description": "",
-                "herbal_name": row.get('herbal_name',''), "latin_name": row.get('latin_name',''),
-                "preparation": row.get('preparation',''), "part_used": row.get('part_used',''),
-                "special_condition": ""
-            })
+            records.append({"symptom": row.get('symptom',''), "diagnosis": "", "description": "", "herbal_name": row.get('herbal_name',''), "latin_name": row.get('latin_name',''), "preparation": row.get('preparation',''), "part_used": row.get('part_used',''), "special_condition": ""})
         for _, row in df_diag.iterrows():
-            records.append({
-                "symptom": "", "diagnosis": row.get('diagnosis',''), "description": "",
-                "herbal_name": row.get('herbal_name',''), "latin_name": row.get('latin_name',''),
-                "preparation": row.get('preparation',''), "part_used": row.get('part_used',''),
-                "special_condition": ""
-            })
+            records.append({"symptom": "", "diagnosis": row.get('diagnosis',''), "description": "", "herbal_name": row.get('herbal_name',''), "latin_name": row.get('latin_name',''), "preparation": row.get('preparation',''), "part_used": row.get('part_used',''), "special_condition": ""})
         for _, row in df_cond.iterrows():
-            records.append({
-                "symptom": "", "diagnosis": "", "description": row.get('description',''),
-                "herbal_name": row.get('herbal_name',''), "latin_name": "",
-                "preparation": "", "part_used": "",
-                "special_condition": row.get('special_condition','')
-            })
+            records.append({"symptom": "", "diagnosis": "", "description": row.get('description',''), "herbal_name": row.get('herbal_name',''), "latin_name": "", "preparation": "", "part_used": "", "special_condition": row.get('special_condition','')})
 
         df = pd.DataFrame(records)
-        df['combined_text'] = df.apply(
-            lambda r: ". ".join(filter(None, [r['symptom'], r['diagnosis'], r['description']])).strip() or r['herbal_name'],
-            axis=1
-        )
-        print(f"[OK] Total {len(df)} dokumen siap di-embed")
+        df['combined_text'] = df.apply(lambda r: ". ".join(filter(None, [r['symptom'], r['diagnosis'], r['description']])).strip() or r['herbal_name'], axis=1)
 
-        print("Memuat model embedding SBERT (all-MiniLM-L6-v2)...")
-        model = SentenceTransformer('all-MiniLM-L6-v2')
+        print("Memuat model embedding (intfloat/multilingual-e5-small)...")
+        model = SentenceTransformer('intfloat/multilingual-e5-small')
+        
+        # WAJIB UNTUK MODEL E5: Tambahkan prefix "query: "
+        texts_to_embed = [f"query: {text}" for text in df['combined_text'].tolist()]
+        
         print(f"Proses embedding {len(df)} teks... (sabar ya)")
-        embeddings = model.encode(df['combined_text'].tolist(), show_progress_bar=True).tolist()
-        print("[OK] Embedding selesai!")
+        embeddings = model.encode(texts_to_embed, show_progress_bar=True).tolist()
 
-        print("Menyimpan ke ChromaDB baru...")
         chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-        collection = chroma_client.get_or_create_collection(name="herbal_collection")
+        collection = chroma_client.get_or_create_collection(name="herbal_collection", metadata={"hnsw:space": "cosine"})
 
         documents, metadatas, ids = [], [], []
         for idx, row in df.iterrows():
             documents.append(row['combined_text'])
-            metadatas.append({
-                "herbal_name":       str(row['herbal_name']),
-                "latin_name":        str(row['latin_name']),
-                "preparation":       str(row['preparation']),
-                "part_used":         str(row['part_used']),
-                "special_condition": str(row['special_condition'])
-            })
+            metadatas.append({"herbal_name": str(row['herbal_name']), "latin_name": str(row['latin_name']), "preparation": str(row['preparation']), "part_used": str(row['part_used']), "special_condition": str(row['special_condition'])})
             fmt = str(row['herbal_name']).lower().replace(" ", "_")
-            ids.append(f"{fmt}_{idx + 1}")
+            ids.append(f"herbal_{fmt}_{idx + 1}")
+            
         batch_size = 500
         for i in range(0, len(ids), batch_size):
-            collection.add(
-                documents=documents[i:i+batch_size],
-                embeddings=embeddings[i:i+batch_size],
-                metadatas=metadatas[i:i+batch_size],
-                ids=ids[i:i+batch_size]
-            )
+            collection.add(documents=documents[i:i+batch_size], embeddings=embeddings[i:i+batch_size], metadatas=metadatas[i:i+batch_size], ids=ids[i:i+batch_size])
             print(f"   Batch {i//batch_size + 1}: {min(i+batch_size, len(ids))}/{len(ids)} tersimpan")
 
-        total = collection.count()
-        print(f"[OK] ChromaDB berhasil dibangun ulang! Total entri: {total}")
+        print(f"[OK] Koleksi herbal_collection berhasil dibangun! Total: {collection.count()}")
         return True
-
     except Exception as e:
         print(f"[GAGAL] Rebuild ChromaDB gagal: {e}")
-        import traceback
-        traceback.print_exc()
+        return False
+
+def rebuild_kamus_medis_chromadb():
+    print("\n" + "="*55)
+    print("STEP 5 - REBUILD KAMUS MEDIS (MED_LABELS) DI CHROMADB")
+    print("="*55)
+    
+    try:
+        from sentence_transformers import SentenceTransformer
+        import chromadb
+        
+        engine = create_engine(DATABASE_URL)
+        
+        query_dasar = "SELECT DISTINCT diagnosis as label FROM herbal_diagnoses WHERE diagnosis IS NOT NULL AND diagnosis != '' UNION SELECT DISTINCT symptom as label FROM herbal_symptoms WHERE symptom IS NOT NULL AND symptom != ''"
+        query_kamus = "SELECT istilah_baku, sinonim_awam FROM kamus_medis WHERE istilah_baku IS NOT NULL AND sinonim_awam IS NOT NULL"
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            df_dasar = pd.read_sql_query(query_dasar, engine)
+            try:
+                df_kamus = pd.read_sql_query(query_kamus, engine)
+            except Exception:
+                df_kamus = pd.DataFrame(columns=['istilah_baku', 'sinonim_awam'])
+
+        print("Memuat Model AI untuk Kamus (intfloat/multilingual-e5-small)...")
+        model = SentenceTransformer('intfloat/multilingual-e5-small')
+        
+        documents, metadatas, ids = [], [], []
+        counter = 0
+
+        for label in df_dasar['label'].tolist():
+            label_str = str(label).strip()
+            documents.append(label_str.lower())
+            metadatas.append({"baku": label_str}) 
+            ids.append(f"db_{counter}")
+            counter += 1
+
+        for _, row in df_kamus.iterrows():
+            documents.append(str(row['sinonim_awam']).strip().lower())
+            metadatas.append({"baku": str(row['istilah_baku']).strip()})
+            ids.append(f"syn_{counter}")
+            counter += 1
+
+        # WAJIB UNTUK MODEL E5: Tambahkan prefix "query: "
+        texts = [f"query: {doc}" for doc in documents]
+        embeddings = model.encode(texts, show_progress_bar=True).tolist()
+
+        chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+        collection = chroma_client.get_or_create_collection(name="med_labels", metadata={"hnsw:space": "cosine"})
+
+        collection.add(documents=documents, embeddings=embeddings, metadatas=metadatas, ids=ids)
+        print("[OK] Kamus Sinonim & Terminologi berhasil ditanamkan ke ChromaDB!")
+        return True
+    except Exception as e:
+        print(f"[GAGAL] Rebuild Kamus Medis ChromaDB gagal: {e}")
         return False
 
 if __name__ == "__main__":
     print("="*55)
-    print("  HERBALYZE - UPDATE DATASET & CHROMADB")
+    print("  HERBALYZE - UPDATE DATASET (1 MODEL: E5-SMALL)")
     print("="*55)
-    print(f"Database: {DB_NAME} @ {DB_HOST}:{DB_PORT}")
-    print(f"ChromaDB: {CHROMA_PATH}")
-
-    ok = seed_postgresql()
-    if not ok:
-        print("\n[BERHENTI] Seed PostgreSQL gagal, proses dihentikan.")
-        sys.exit(1)
-
+    if not seed_postgresql(): sys.exit(1)
     reset_chromadb()
+    ok_herbal = rebuild_chromadb()
+    ok_kamus = rebuild_kamus_medis_chromadb()
 
-    ok = rebuild_chromadb()
-
-    print("\n" + "="*55)
-    if ok:
-        print("SELESAI! Dataset dan ChromaDB sudah diperbarui.")
-        print("Restart server backend (uvicorn) agar perubahan aktif.")
+    if ok_herbal and ok_kamus:
+        print("\n✅ SELESAI! Seluruh sistem kini menggunakan 1 model (intfloat/multilingual-e5-small).")
     else:
-        print("Ada masalah saat rebuild ChromaDB. Cek pesan error di atas.")
-    print("="*55)
+        print("\n⚠️ Selesai dengan catatan error.")

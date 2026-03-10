@@ -644,7 +644,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                         similarity_score = (1 - distance) * 100
                         label_penyakit = search_results['metadatas'][0][i]['baku']
                         
-                        if similarity_score >= 82.0 and best_label is None:
+                        if similarity_score >= 88.0 and best_label is None:
                             best_label = label_penyakit
                             print(f"      ✅ AI YAKIN! Keluhan '{clean_chunk}' maksudnya adalah = '{best_label}'")
                     
