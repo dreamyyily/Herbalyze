@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "../../layouts/MainLayout";
-import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
 import { getReadOnlyContract } from "../../utils/web3";
+import Avatar from "../../components/Avatar";
 
 export default function CatatanDokter() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
@@ -86,9 +86,9 @@ export default function CatatanDokter() {
     // 2. Lempar ke halaman Home dengan membawa instruksi "Mode SBERT"
     navigate("/ai-search", {
       state: {
-        useSbertMode: true, // Flag penting untuk Home.jsx nanti
-        sbertQuery: combinedTextForSbert, // Teks bebas
-        kondisiKhusus: record.kondisiKhusus // Dropdown (Kondisi hamil/lansia tetap butuh filter pasti)
+        useSbertMode: true, 
+        sbertQuery: combinedTextForSbert, 
+        kondisiKhusus: record.kondisiKhusus 
       }
     });
   };
@@ -121,9 +121,7 @@ export default function CatatanDokter() {
 
         <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden">
           
-          {/* ==================================================== */}
           {/* TAMPILAN DETAIL RECORD */}
-          {/* ==================================================== */}
           {selectedRecord && (
             <div className="animate-fade-in flex flex-col">
               <div className="bg-gray-50/50 border-b border-gray-100 px-8 py-6 flex justify-between items-center">
@@ -142,9 +140,7 @@ export default function CatatanDokter() {
               <div className="p-8 md:p-12">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-dashed border-gray-200 mb-8">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-primary-10 rounded-full flex items-center justify-center text-2xl">
-                      👨‍⚕️
-                    </div>
+                    <Avatar name={selectedRecord.dokterName} fotoProfil={null} size="lg" />
                     <div>
                       <p className="text-sm text-gray-400 font-medium uppercase tracking-wide">Pemeriksa</p>
                       <p className="text-xl font-bold text-gray-800">{selectedRecord.dokterName || "Dokter Anonim"}</p>
@@ -193,9 +189,7 @@ export default function CatatanDokter() {
             </div>
           )}
 
-          {/* ==================================================== */}
           {/* TAMPILAN TABEL RIWAYAT (DENGAN TOMBOL AI DI DEPAN)   */}
-          {/* ==================================================== */}
           {!selectedRecord && (
             <div className="p-8 md:p-10">
               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
@@ -254,7 +248,7 @@ export default function CatatanDokter() {
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <span className="text-lg">👨‍⚕️</span>
+                              <Avatar name={record.dokterName} fotoProfil={null} size="sm" />
                               <span className="font-semibold text-gray-800">{record.dokterName || "-"}</span>
                             </div>
                           </td>
@@ -270,7 +264,6 @@ export default function CatatanDokter() {
                                 Lihat Detail
                               </button>
                               
-                              {/* TOMBOL AI DI DEPAN */}
                               <button
                                 onClick={() => handleCariRekomendasiAI(record)}
                                 className="bg-gradient-to-r from-primary-40 to-primary-60 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-transform active:scale-95 text-xs whitespace-nowrap flex items-center gap-1.5"

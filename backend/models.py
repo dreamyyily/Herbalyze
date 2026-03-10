@@ -10,12 +10,19 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=True)
     password_hash = Column(String(256), nullable=True)
     is_profile_complete = Column(Boolean, default=False)
-    role = Column(String(50), default='Patient') # Status akun (Patient / Pending_Doctor / Doctor / Admin)
-    nonce = Column(String(255), nullable=True)   # Menyimpan sandi acak / nonce Web3
+    role = Column(String(50), default='Patient') 
+    nonce = Column(String(255), nullable=True)  
     nomor_str = Column(String(100), nullable=True)
     nama_instansi = Column(String(255), nullable=True)
     dokumen_str_path = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    nik = Column(String(20), nullable=True)
+    tempat_lahir = Column(String(100), nullable=True)
+    tanggal_lahir = Column(String(20), nullable=True)
+    nomor_hp = Column(String(20), nullable=True)
+    jenis_kelamin = Column(String(20), nullable=True)
+    alergi_herbal = Column(JSON, default=list, nullable=True)
+    foto_profil = Column(Text, nullable=True)
 
     def to_dict(self):
         return {
@@ -24,7 +31,14 @@ class User(Base):
             'name': self.name,
             'email': self.email,
             'is_profile_complete': self.is_profile_complete,
-            'role': self.role
+            'role': self.role,
+            'nik': self.nik,
+            'tempat_lahir': self.tempat_lahir,
+            'tanggal_lahir': self.tanggal_lahir,
+            'nomor_hp': self.nomor_hp,
+            'jenis_kelamin': self.jenis_kelamin,
+            'alergi_herbal': self.alergi_herbal or [],
+            'foto_profil': self.foto_profil,
         }
 
 class HerbalDiagnosis(Base):

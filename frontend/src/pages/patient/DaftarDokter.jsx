@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
+import Avatar from "../../components/Avatar";
 
 export default function DaftarDokter() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
@@ -199,9 +200,7 @@ export default function DaftarDokter() {
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary-10 flex items-center justify-center text-xl">
-                          👨‍⚕️
-                        </div>
+                        <Avatar name={doc.name} fotoProfil={doc.foto_profil} size="lg" />
                         <div>
                           <p className="font-semibold text-gray-800">{doc.name || "Dokter"}</p>
                           <p className="text-sm text-gray-500">{doc.instansi || "Instansi tidak tersedia"}</p>

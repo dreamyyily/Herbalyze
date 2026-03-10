@@ -5,8 +5,8 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { formatTanggal } from "../../utils/formatTanggal";
 import { validateRequired } from "../../utils/validateForm";
-import { loadProfile, saveProfile } from "../../utils/storage";
 import MultiSelectField from "../../components/MultiSelectField";
+import Avatar from "../../components/Avatar";
 
 const genderOptions = ["Laki-laki", "Perempuan"];
 
@@ -25,7 +25,7 @@ export default function DataPersonal() {
   // --- STATE BARU: Modal Hasil Dinamis (Toast) ---
   const [actionResult, setActionResult] = useState({
     isOpen: false,
-    type: 'success', // 'success' atau 'danger'
+    type: 'success', 
     title: '',
     message: ''
   });
@@ -46,26 +46,29 @@ export default function DataPersonal() {
       return;
     }
 
-    // 1. Load dari LocalStorage
-    const savedProfile = loadProfile();
-    if (savedProfile) {
-      setFormData((prev) => ({ ...prev, ...savedProfile }));
-      if (savedProfile.photo) setPhotoPreview(savedProfile.photo);
-    }
-
-    // 2. Sinkronkan dengan Database
     fetch(`http://127.0.0.1:8000/api/profile/${wallet}`)
       .then((res) => res.json())
       .then((data) => {
-        setFormData((prev) => ({ 
-          ...prev, 
-          nama: prev.nama || data.name || "", 
-          email: data.email || "", 
-          role: data.role 
+        setFormData({
+          photo: data.foto_profil || null,
+          nik: data.nik || "",
+          nama: data.name || "",
+          tempatLahir: data.tempat_lahir || "",
+          tanggalLahir: data.tanggal_lahir || "",
+          email: data.email || "",
+          nomorHp: data.nomor_hp || "",
+          jenisKelamin: data.jenis_kelamin || "",
+          alergiHerbal: data.alergi_herbal || [],
+          role: data.role || "Patient",
+        });
+        if (data.foto_profil) setPhotoPreview(data.foto_profil);
+        // role n name to storage
+        localStorage.setItem('user_profile', JSON.stringify({
+          name: data.name, role: data.role
         }));
       }).catch((err) => console.error("Gagal load profile:", err));
 
-    // 3. Fetch Herbs Options
+    // Fetch Herbs Options
     fetch("http://127.0.0.1:8000/api/herbs")
       .then((res) => res.json())
       .then((data) => { setHerbsOptions(["Tidak Ada", ...data]); })
@@ -178,16 +181,46 @@ export default function DataPersonal() {
     setFormData((prev) => ({ ...prev, [name]: value })); setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const handleSimpan = () => {
+  const handleSimpan = async () => {
     if (!isPersonalDataComplete(true)) return;
-    
-    saveProfile(formData);
 
-    if (location.state?.fromHomeLock) {
-      navigate("/", { state: { profileUpdated: true } });
-    } else {
-      setIsEdit(false);
-      showToast('success', 'Penyimpanan Berhasil', 'Data profil personal Anda telah berhasil diperbarui.');
+    const walletAddress = localStorage.getItem("user_wallet");
+    if (!walletAddress) { showToast('danger', 'Sesi Tidak Valid', 'Silakan login ulang.'); return; }
+
+    try {
+      const payload = {
+        wallet_address: walletAddress,
+        nik: formData.nik,
+        nama: formData.nama,
+        tempat_lahir: formData.tempatLahir,
+        tanggal_lahir: formData.tanggalLahir,
+        nomor_hp: formData.nomorHp,
+        jenis_kelamin: formData.jenisKelamin,
+        alergi_herbal: formData.alergiHerbal,
+        foto_profil: formData.photo || null,
+      };
+
+      const res = await fetch("http://localhost:8000/api/profile/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Gagal menyimpan profil");
+
+      localStorage.setItem('user_profile', JSON.stringify({
+        name: formData.nama, role: formData.role,
+      }));
+
+      if (location.state?.fromHomeLock) {
+        navigate("/", { state: { profileUpdated: true } });
+      } else {
+        setIsEdit(false);
+        showToast('success', 'Penyimpanan Berhasil', 'Data profil personal Anda telah berhasil diperbarui.');
+      }
+    } catch (err) {
+      showToast('danger', 'Gagal Menyimpan', err.message);
     }
   };
 
@@ -198,9 +231,7 @@ export default function DataPersonal() {
           <div className="bg-white rounded-3xl shadow-2xl p-12 border border-light-40 relative">
             <button onClick={() => setIsEdit(true)} className="absolute top-10 right-10 bg-primary-10 text-primary-50 px-6 py-2.5 rounded-full font-bold hover:bg-primary-20 transition">✎ Edit Profil</button>
             <div className="flex items-center gap-8 mb-16">
-              <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary-40 shadow-md">
-                <img src={photoPreview || formData.photo || "https://via.placeholder.com/150"} alt="Profil" className="w-full h-full object-cover" />
-              </div>
+              <Avatar name={formData.nama} fotoProfil={photoPreview || formData.photo} size="xl" className="border-4 border-primary-40 shadow-md" />
               <h1 className="text-3xl font-extrabold text-dark-50">{formData.nama || "Nama User"}</h1>
             </div>
 
@@ -366,7 +397,7 @@ export default function DataPersonal() {
                   <span className="text-4xl text-primary-30">+</span>
                 )}
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
-                   <span className="text-white font-semibold text-sm">Ganti Foto</span>
+                  <span className="text-white font-semibold text-sm">Ganti Foto</span>
                 </div>
               </div>
               <label className="absolute inset-0 cursor-pointer">

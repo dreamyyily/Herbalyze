@@ -799,6 +799,7 @@ def get_doctors(db: Session = Depends(get_db)):
             "wallet_address": u.wallet_address,
             "instansi": getattr(u, 'nama_instansi', None),
             "spesialisasi": getattr(u, 'spesialisasi', None),
+            "foto_profil": u.foto_profil,
         })
     return {"doctors": result}
 
@@ -823,7 +824,45 @@ def get_patients_by_wallets(req: WalletListRequest, db: Session = Depends(get_db
                 "name": u.name,
                 "email": u.email,
                 "wallet_address": u.wallet_address,
+                "foto_profil": u.foto_profil,
             }
             for u in users
         ]
     }
+    
+class UpdateProfileRequest(BaseModel):
+    wallet_address: str
+    nik: Optional[str] = None
+    nama: Optional[str] = None
+    tempat_lahir: Optional[str] = None
+    tanggal_lahir: Optional[str] = None
+    nomor_hp: Optional[str] = None
+    jenis_kelamin: Optional[str] = None
+    alergi_herbal: Optional[list] = None
+    foto_profil: Optional[str] = None
+
+@app.put("/api/profile/update")
+def update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        func.lower(User.wallet_address) == req.wallet_address.lower()
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    
+    if req.nik is not None: user.nik = req.nik
+    if req.nama is not None: user.name = req.nama
+    if req.tempat_lahir is not None: user.tempat_lahir = req.tempat_lahir
+    if req.tanggal_lahir is not None: user.tanggal_lahir = req.tanggal_lahir
+    if req.nomor_hp is not None: user.nomor_hp = req.nomor_hp
+    if req.jenis_kelamin is not None: user.jenis_kelamin = req.jenis_kelamin
+    if req.alergi_herbal is not None: user.alergi_herbal = req.alergi_herbal
+    if req.foto_profil is not None: user.foto_profil = req.foto_profil
+    
+    if user.nik and user.name and user.tanggal_lahir and user.alergi_herbal:
+        user.is_profile_complete = True
+    
+    db.commit()
+    db.refresh(user)
+    
+    return {"message": "Profil berhasil diperbarui", "user": user.to_dict()}

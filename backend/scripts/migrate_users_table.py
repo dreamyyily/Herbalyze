@@ -1,13 +1,8 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask
-from models import db
 import psycopg2
 
 load_dotenv()
-
-app = Flask(__name__)
-
 
 db_user = os.getenv('DB_USER', 'postgres')
 db_password = os.getenv('DB_PASSWORD', 'password')
@@ -15,123 +10,67 @@ db_host = os.getenv('DB_HOST', 'localhost')
 db_port = os.getenv('DB_PORT', '5432')
 db_name = os.getenv('DB_NAME', 'herbalyze_db')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db.init_app(app)
-
 def migrate_users_table():
     try:
-        with app.app_context():
-            conn = psycopg2.connect(
-                host=db_host,
-                port=db_port,
-                database=db_name,
-                user=db_user,
-                password=db_password
-            )
-            cursor = conn.cursor()
-            
-            print("=" * 60)
-            print("Migrating users table...")
-            print("=" * 60)
-            cursor.execute("""
-                SELECT column_name, is_nullable 
-                FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='password';
-            """)
-            row = cursor.fetchone()
-            if row:
-                print("Found 'password' column, making it nullable (app uses password_hash)...")
-                cursor.execute("""
-                    ALTER TABLE users 
-                    ALTER COLUMN password DROP NOT NULL;
-                """)
-                print("✅ password column is now nullable")
-            
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='password_hash';
-            """)
-            if not cursor.fetchone():
-                print("Adding password_hash column...")
-                cursor.execute("""
-                    ALTER TABLE users 
-                    ADD COLUMN password_hash VARCHAR(256);
-                """)
-                print("✅ password_hash column added")
-            else:
-                print("✅ password_hash column already exists")
-            
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='created_at';
-            """)
-            if not cursor.fetchone():
-                print("Adding created_at column...")
-                cursor.execute("""
-                    ALTER TABLE users 
-                    ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-                """)
-                print("✅ created_at column added")
-            else:
-                print("✅ created_at column already exists")
-            
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='is_profile_complete';
-            """)
-            if not cursor.fetchone():
-                print("Adding is_profile_complete column...")
-                cursor.execute("""
-                    ALTER TABLE users 
-                    ADD COLUMN is_profile_complete BOOLEAN DEFAULT FALSE;
-                """)
-                print("✅ is_profile_complete column added")
-            else:
-                print("✅ is_profile_complete column already exists")
+        conn = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            database=db_name,
+            user=db_user,
+            password=db_password
+        )
+        cursor = conn.cursor()
         
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='role';
-            """)
-            if not cursor.fetchone():
-                print("Adding role column...")
-                cursor.execute("""
-                    ALTER TABLE users 
-                    ADD COLUMN role VARCHAR(50) DEFAULT 'Pending';
-                """)
-                print("✅ role column added")
-            else:
-                print("✅ role column already exists")
+        print("=" * 60)
+        print("Migrating users table...")
+        print("=" * 60)
 
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name='users' AND column_name='password';
+        """)
+        if cursor.fetchone():
+            cursor.execute("ALTER TABLE users ALTER COLUMN password DROP NOT NULL;")
+            print("✅ password column is now nullable")
+
+        kolom_lama = [
+            ("password_hash",       "VARCHAR(256)"),
+            ("created_at",          "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("is_profile_complete", "BOOLEAN DEFAULT FALSE"),
+            ("role",                "VARCHAR(50) DEFAULT 'Pending'"),
+            ("nonce",               "VARCHAR(255)"),
+        ]
+
+        kolom_baru = [
+            ("nik",           "VARCHAR(20)"),
+            ("tempat_lahir",  "VARCHAR(100)"),
+            ("tanggal_lahir", "VARCHAR(20)"),
+            ("nomor_hp",      "VARCHAR(20)"),
+            ("jenis_kelamin", "VARCHAR(20)"),
+            ("alergi_herbal", "JSON"),
+            ("foto_profil",   "TEXT"),
+        ]
+
+        for nama_kolom, tipe in kolom_lama + kolom_baru:
             cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='nonce';
-            """)
-            if not cursor.fetchone():
-                print("Adding nonce column...")
-                cursor.execute("""
-                    ALTER TABLE users 
-                    ADD COLUMN nonce VARCHAR(255);
-                """)
-                print("✅ nonce column added")
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='users' AND column_name=%s
+            """, (nama_kolom,))
+            
+            if cursor.fetchone():
+                print(f"✅ Kolom '{nama_kolom}' sudah ada, dilewati.")
             else:
-                print("✅ nonce column already exists")
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {nama_kolom} {tipe};")
+                print(f"✅ Kolom '{nama_kolom}' berhasil ditambahkan.")
+
+        conn.commit()
+        cursor.close()
+        conn.close()
         
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            print("=" * 60)
-            print("✅ Migration completed successfully!")
-            print("=" * 60)
-            
+        print("=" * 60)
+        print("✅ Migration completed successfully!")
+        print("=" * 60)
+        
     except Exception as e:
         print(f"❌ Migration failed: {e}")
         import traceback

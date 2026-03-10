@@ -1,11 +1,32 @@
 import { NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
+import Avatar from "./Avatar";
 
 export default function Navbar() {
-  const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-  const role = profile.role || 'Patient';
+  const [profileData, setProfileData] = useState({
+  name: null, role: 'Patient', foto_profil: null
+});
 
-  // --- LOGIKA PERBAIKAN ROLE ---
-  // Anggap Pending dan Rejected sebagai Pasien biasa agar menu tetap muncul
+useEffect(() => {
+  const wallet = localStorage.getItem("user_wallet");
+  if (!wallet) return;
+
+  const cached = JSON.parse(localStorage.getItem('user_profile') || '{}');
+  if (cached.name || cached.role) {
+    setProfileData(prev => ({ ...prev, name: cached.name, role: cached.role || 'Patient', foto_profil: cached.foto_profil || null }));
+  }
+
+  fetch(`http://127.0.0.1:8000/api/profile/${wallet}`)
+    .then(res => res.json())
+    .then(data => {
+      setProfileData({ name: data.name || null, role: data.role || 'Patient', foto_profil: data.foto_profil || null });
+      localStorage.setItem('user_profile', JSON.stringify({ name: data.name, role: data.role, foto_profil: data.foto_profil || null }));
+    })
+    .catch(err => console.error("Navbar: gagal load profil", err));
+}, []);
+
+const { name, role, foto_profil } = profileData;
+
   const isPatientMenuVisible = role === 'Patient' || role === 'Pending_Doctor' || role === 'Rejected_Doctor';
 
   return (
@@ -77,14 +98,19 @@ export default function Navbar() {
         )}
       </div>
 
-      <div className="flex items-center gap-6">
-        <div className="text-regular-16 text-dark-30 font-medium bg-gray-100 px-4 py-1.5 rounded-full">
-          {profile.name
-            ? profile.name
-            : localStorage.getItem('user_wallet')
-              ? localStorage.getItem('user_wallet').substring(0, 6) + '...' + localStorage.getItem('user_wallet').slice(-4)
-              : 'User'}
-        </div>
+      <div className="flex items-center gap-4">
+        <NavLink to="/data-personal" className="group flex items-center gap-3 hover:opacity-90 transition">
+          <div className="relative">
+            <Avatar name={name} fotoProfil={foto_profil} size="sm" className="border-2 border-primary-30 shadow-sm group-hover:border-primary-50 transition" />
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full"></span>
+          </div>
+          {name && (
+            <span className="text-sm font-semibold text-dark-40 group-hover:text-primary-50 transition max-w-[120px] truncate hidden md:block">
+              {name.split(" ")[0]}
+            </span>
+          )}
+        </NavLink>
+
         <button
           onClick={() => {
             localStorage.removeItem('user_wallet');

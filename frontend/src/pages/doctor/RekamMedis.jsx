@@ -2,14 +2,7 @@ import React, { useState, useEffect } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import CryptoJS from "crypto-js";
 import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
-
-const CONTRACT_ADDRESS = "0x88A7ABC3ebC0525761E324F1E85a64787fCdFB9d";
-const CONTRACT_ABI = [
-  "function addMedicalRecord(address _patientAddress, string memory _encryptedData) public",
-  "function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp)",
-  "function recordCount() public view returns (uint256)",
-  "event MedicalRecordAdded(uint256 indexed recordId, address indexed patientAddress, address indexed uploader, uint256 timestamp)"
-];
+import Avatar from "../../components/Avatar";
 
 export default function RekamMedis() {
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -467,9 +460,7 @@ export default function RekamMedis() {
                         return (
                           <div key={wallet} className="border border-green-100 bg-green-50 rounded-2xl p-6">
                             <div className="flex items-center gap-3 mb-4">
-                              <div className="w-11 h-11 rounded-full bg-white border border-green-200 flex items-center justify-center text-lg">
-                                🧑
-                              </div>
+                              <Avatar name={p?.name} fotoProfil={p?.foto_profil} size="md" />
                               <div>
                                 <p className="font-semibold text-gray-800">{p?.name || "Pasien"}</p>
                                 <p className="text-xs font-mono text-gray-400">
