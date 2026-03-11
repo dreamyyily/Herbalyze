@@ -2,10 +2,59 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { connectWallet, signMessage, requestNonce } from '../utils/web3Helpers'; 
 
+// ─── Toast Component ────────────────────────────────────────────────────────
+function Toast({ toasts, removeToast }) {
+  return (
+    <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`pointer-events-auto flex items-start gap-4 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-md max-w-sm w-full
+            transform transition-all duration-500 animate-slide-in
+            ${t.type === "success" ? "bg-white/90 border-green-200 text-green-800" :
+              t.type === "error"   ? "bg-white/90 border-red-200 text-red-800" :
+              t.type === "warning" ? "bg-white/90 border-orange-200 text-orange-800" :
+                                     "bg-white/90 border-blue-200 text-blue-800"}`}
+        >
+          <span className="text-2xl mt-0.5 flex-shrink-0">
+            {t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}
+          </span>
+          <div className="flex-1">
+            {t.title && <p className="font-bold text-sm mb-0.5">{t.title}</p>}
+            <p className="text-sm leading-relaxed">{t.message}</p>
+          </div>
+          <button
+            onClick={() => removeToast(t.id)}
+            className="text-gray-400 hover:text-gray-600 transition text-lg leading-none flex-shrink-0 mt-0.5"
+          >×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [loginData, setLoginData] = useState({ email: '', password: '' });
+    // State khusus Admin: menyimpan data sementara setelah step 1 (SEBELUM MetaMask verify)
+    // wallet sengaja TIDAK disimpan ke localStorage agar App.jsx tidak redirect prematur
+    const [adminPendingData, setAdminPendingData] = useState(null);
     const navigate = useNavigate();
+
+    // toast notifikasi
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = (type, title, message) => {
+        const id = Date.now();
+        setToasts((prev) => [...prev, { id, type, title, message }]);
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 5000);
+    };
+
+    const removeToast = (id) => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+    };
 
     const handleChange = (e) => {
         setLoginData({ ...loginData, [e.target.name]: e.target.value });
@@ -23,21 +72,65 @@ const Login = () => {
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Gagal masuk');
-            
-            // Simpan sesi dasar
-            localStorage.setItem('user_profile', JSON.stringify(data.user));
-            if (data.user.wallet_address) {
-                localStorage.setItem('user_wallet', data.user.wallet_address);
-            }
-            
+
             if (data.user.role === 'Admin') {
-                navigate('/admin');
+                // ✅ FIX: Admin TIDAK simpan user_wallet dulu ke localStorage
+                // Cukup simpan profile (tanpa wallet) agar App.jsx tidak redirect prematur
+                localStorage.setItem('user_profile', JSON.stringify(data.user));
+                // Simpan data admin sementara di state → tampilkan UI Step 2
+                setAdminPendingData(data.user);
             } else {
+                // User biasa: simpan semua dan redirect
+                localStorage.setItem('user_profile', JSON.stringify(data.user));
+                if (data.user.wallet_address) {
+                    localStorage.setItem('user_wallet', data.user.wallet_address);
+                }
                 navigate('/home');
             }
 
         } catch (error) {
-            alert(error.message);
+            showToast("error", "Login Gagal", error.message || "Terjadi kesalahan saat masuk");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 1b. Admin Step 2: Verifikasi MetaMask setelah email+password berhasil
+    const handleAdminMetaMaskVerify = async () => {
+        setIsLoading(true);
+        try {
+            const address = await connectWallet();
+
+            // Pastikan wallet yang connect sesuai dengan wallet admin di DB
+            if (adminPendingData.wallet_address &&
+                address.toLowerCase() !== adminPendingData.wallet_address.toLowerCase()) {
+                throw new Error('Wallet tidak sesuai dengan akun Admin ini. Gunakan wallet yang terdaftar.');
+            }
+
+            const nonce = await requestNonce(address);
+            const signedData = await signMessage(nonce);
+
+            const response = await fetch('http://localhost:8000/api/verify_signature', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    wallet_address: signedData.address,
+                    signature: signedData.signature
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Verifikasi MetaMask gagal');
+
+            // ✅ Baru sekarang simpan wallet ke localStorage setelah MetaMask sukses
+            localStorage.setItem('user_wallet', signedData.address);
+            localStorage.setItem('user_profile', JSON.stringify(data.user));
+            localStorage.setItem('admin_metamask_verified', 'true');
+
+            navigate('/admin');
+
+        } catch (error) {
+            showToast("error", "Verifikasi Ditolak", error.message || "Tidak dapat memverifikasi MetaMask");
         } finally {
             setIsLoading(false);
         }
@@ -81,14 +174,105 @@ const Login = () => {
 
         } catch (error) {
             console.error("Kesalahan Masuk MetaMask:", error);
-            alert("Gagal masuk: " + error.message);
+            showToast("error", "Verifikasi Ditolak", error.message || "Gagal masuk menggunakan MetaMask");
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Jika Admin sudah berhasil login Step 1, tampilkan UI Step 2 (Mode Modern/Keren)
+    if (adminPendingData) {
+        return (
+            <div className="min-h-screen flex flex-col md:flex-row font-sans relative">
+                <Toast toasts={toasts} removeToast={removeToast} />
+                <style>{`
+                  @keyframes slide-in {
+                    0% { transform: translateX(100%); opacity: 0; }
+                    100% { transform: translateX(0); opacity: 1; }
+                  }
+                  .animate-slide-in { animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+                `}</style>
+
+                {/* Sisi Kiri: Interkasi */}
+                <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative z-10">
+                    <div className="max-w-md w-full space-y-6">
+                        <div className="text-center">
+                            <h1 className="text-4xl font-extrabold text-primary-40 tracking-tight">Herbalyze</h1>
+                        </div>
+
+                        <div className="bg-white border border-gray-100 shadow-xl shadow-gray-200/50 rounded-3xl p-8 flex flex-col items-center mt-8">
+                            <div className="w-16 h-16 bg-green-50/50 border border-green-100 rounded-2xl flex items-center justify-center mb-5 shadow-inner">
+                                <span className="text-3xl drop-shadow-sm">🛡️</span>
+                            </div>
+
+                            <h2 className="text-2xl font-bold text-gray-800 text-center tracking-tight">Verifikasi Keamanan</h2>
+                            <p className="mt-2 text-center text-sm text-gray-500 leading-relaxed">
+                                Halo, <span className="font-semibold text-gray-700">{adminPendingData.name}</span>.<br />Tahap satu selesai. Silakan hubungkan dompet MetaMask Anda.
+                            </p>
+
+                            <div className="mt-6 w-full flex items-center gap-3 bg-green-50/70 border border-green-200/50 p-4 rounded-xl">
+                                <span className="relative flex h-3 w-3 flex-shrink-0">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                </span>
+                                <span className="text-sm font-semibold text-green-700">Email & Password Terverifikasi</span>
+                            </div>
+
+                            <div className="mt-8 w-full">
+                                <button
+                                    onClick={handleAdminMetaMaskVerify}
+                                    disabled={isLoading}
+                                    className="w-full flex justify-center items-center gap-3 py-3.5 px-6 rounded-xl text-gray-800 font-bold bg-white border border-gray-300 hover:bg-gray-50 shadow-sm transition-all focus:ring-2 focus:ring-offset-1 focus:ring-gray-200"
+                                >
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-5 h-5 drop-shadow-sm" />
+                                    <span>{isLoading ? 'Memproses...' : 'Verifikasi dengan MetaMask'}</span>
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setAdminPendingData(null);
+                                    localStorage.removeItem('user_profile');
+                                }}
+                                className="mt-5 text-sm font-medium text-gray-400 hover:text-gray-600 transition"
+                            >
+                                ← Batalkan & Kembali ke halaman login
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Sisi Kanan: Visual */}
+                <div className="hidden md:flex md:w-1/2 bg-gradient-to-b from-green-200 via-green-400 to-green-800 relative overflow-hidden flex-col justify-center items-center">
+                    <div className="relative z-10 text-center max-w-lg px-8">
+                        <div className="mb-8 transform hover:scale-105 transition duration-500">
+                            <div className="w-40 h-40 bg-white/30 backdrop-blur-md rounded-full mx-auto flex items-center justify-center shadow-2xl border border-white/40">
+                                <span className="text-6xl filter drop-shadow-lg">🔐</span>
+                            </div>
+                        </div>
+                        <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Verifikasi Admin</h2>
+                        <p className="text-white text-lg font-medium bg-white/20 p-5 rounded-xl backdrop-blur-sm shadow-lg leading-relaxed">
+                            "Keamanan berlapis: email, password, dan tanda tangan MetaMask memastikan hanya instansi/pihak medis sah yang dapat mengakses sistem."
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen flex flex-col md:flex-row font-sans">
+        <div className="min-h-screen flex flex-col md:flex-row font-sans relative">
+            {/* Toast Notifikasi */}
+            <Toast toasts={toasts} removeToast={removeToast} />
+            {/* Animasi toast */}
+            <style>{`
+              @keyframes slide-in {
+                0% { transform: translateX(100%); opacity: 0; }
+                100% { transform: translateX(0); opacity: 1; }
+              }
+              .animate-slide-in { animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+            `}</style>
+            
             {/* Sisi Kiri: Interaksi */}
             <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative z-10">
                 <div className="max-w-md w-full space-y-8">

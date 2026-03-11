@@ -3,6 +3,37 @@ import MainLayout from "../../layouts/MainLayout";
 import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
 import Avatar from "../../components/Avatar";
 
+// ─── Toast Component ────────────────────────────────────────────────────────
+function Toast({ toasts, removeToast }) {
+  return (
+    <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`pointer-events-auto flex items-start gap-4 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-md max-w-sm w-full
+            transform transition-all duration-500 animate-slide-in
+            ${t.type === "success" ? "bg-white/90 border-green-200 text-green-800" :
+              t.type === "error"   ? "bg-white/90 border-red-200 text-red-800" :
+              t.type === "warning" ? "bg-white/90 border-orange-200 text-orange-800" :
+                                     "bg-white/90 border-blue-200 text-blue-800"}`}
+        >
+          <span className="text-2xl mt-0.5 flex-shrink-0">
+            {t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}
+          </span>
+          <div className="flex-1">
+            {t.title && <p className="font-bold text-sm mb-0.5">{t.title}</p>}
+            <p className="text-sm leading-relaxed">{t.message}</p>
+          </div>
+          <button
+            onClick={() => removeToast(t.id)}
+            className="text-gray-400 hover:text-gray-600 transition text-lg leading-none flex-shrink-0 mt-0.5"
+          >×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DaftarDokter() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
 
@@ -11,6 +42,21 @@ export default function DaftarDokter() {
   const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
   const [loadingConsent, setLoadingConsent] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
+
+  // toast notifikasi
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (type, title, message) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, title, message }]);
+    setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  };
+
+  const removeToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   useEffect(() => {
     fetchDoctors();
@@ -79,11 +125,11 @@ export default function DaftarDokter() {
       if (currentConsent) {
         tx = await contract.revokeConsent(doctorWallet);
         await tx.wait();
-        alert("✅ Izin berhasil dicabut dari dokter ini.");
+        showToast("success", "Izin Dicabut", "Izin berhasil dicabut dari dokter ini.");
       } else {
         tx = await contract.grantConsent(doctorWallet);
         await tx.wait();
-        alert("✅ Izin berhasil diberikan! Dokter ini sekarang dapat mengisi rekam medis Anda.");
+        showToast("success", "Izin Diberikan", "Izin berhasil diberikan! Dokter ini sekarang dapat mengisi rekam medis Anda.");
       }
 
       setConsentMap((prev) => ({ ...prev, [normalizedDoctor]: !currentConsent }));
@@ -99,19 +145,15 @@ export default function DaftarDokter() {
       const errMsg = err?.data?.message || err?.message || "";
 
       if (revertReason.includes("belum di-ACC") || errMsg.includes("belum di-ACC")) {
-        alert(
-          "❌ Akun Anda belum disetujui oleh Admin.\n\n" +
-          "Wallet address Anda perlu di-approve terlebih dahulu oleh Administrator Herbalyze sebelum bisa memberikan izin ke dokter.\n\n" +
-          "Hubungi admin untuk proses verifikasi."
-        );
+        showToast("error", "Akun Belum Disetujui", "Wallet address Anda perlu di-approve terlebih dahulu oleh Administrator Herbalyze sebelum bisa memberikan izin ke dokter.");
       } else if (revertReason.includes("Consent sudah diberikan") || errMsg.includes("Consent sudah diberikan")) {
-        alert("ℹ️ Izin sudah diberikan sebelumnya.");
+        showToast("info", "Info", "Izin sudah diberikan sebelumnya.");
       } else if (revertReason.includes("Consent belum pernah") || errMsg.includes("Consent belum pernah")) {
-        alert("ℹ️ Belum ada izin yang diberikan.");
+        showToast("info", "Info", "Belum ada izin yang diberikan.");
       } else if (err.code === 4001) {
-        alert("⚠️ Transaksi dibatalkan oleh pengguna.");
+        showToast("warning", "Dibatalkan", "Transaksi dibatalkan oleh pengguna.");
       } else {
-        alert("❌ Gagal mengubah izin: " + (revertReason || errMsg || "Lihat console untuk detail."));
+        showToast("error", "Gagal", "Gagal mengubah izin: " + (revertReason || errMsg || "Lihat console untuk detail."));
       }
     } finally {
       setLoadingConsent((prev) => ({ ...prev, [normalizedDoctor]: false }));
@@ -126,7 +168,18 @@ export default function DaftarDokter() {
 
   return (
     <MainLayout>
-      <div className="max-w-6xl mx-auto px-4 mt-16 pb-20">
+      {/* Toast Notifikasi */}
+      <Toast toasts={toasts} removeToast={removeToast} />
+      {/* Animasi toast */}
+      <style>{`
+        @keyframes slide-in {
+          0% { transform: translateX(100%); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in { animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+      `}</style>
+
+      <div className="max-w-6xl mx-auto px-4 mt-16 pb-20 relative">
 
         <div className="text-center mb-10">
           <h1 className="text-2xl font-bold text-dark-50 mb-2">Daftar Dokter Terverifikasi</h1>
@@ -218,11 +271,7 @@ export default function DaftarDokter() {
                         🏥 Spesialisasi: <span className="text-gray-600">{doc.spesialisasi}</span>
                       </p>
                     )}
-                    {wallet && (
-                      <p className="text-xs text-gray-400 mb-4 font-mono">
-                        🔑 {wallet.substring(0, 6)}...{wallet.slice(-4)}
-                      </p>
-                    )}
+
 
                     <button
                       onClick={() => handleToggleConsent(doc.wallet_address)}

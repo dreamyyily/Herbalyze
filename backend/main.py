@@ -15,9 +15,9 @@ import traceback
 import re
 
 from db import get_db, Base, engine
-from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory
+from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory, MedicalRecordDraft
 from fastapi.encoders import jsonable_encoder
-from blockchain_service import approve_wallet_on_chain
+from blockchain_service import approve_wallet_on_chain, add_medical_record_on_chain
 
 from dotenv import load_dotenv
 import requests
@@ -95,7 +95,7 @@ class LoginRequest(BaseModel):
     password: str
 
 class ConnectWalletRequest(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None
     wallet_address: str
 
 class Web3AuthRequest(BaseModel):
@@ -109,9 +109,74 @@ class ApproveDoctorRequest(BaseModel):
 class RejectDoctorRequest(BaseModel):
     wallet_address: str
 
+class SetupAdminRequest(BaseModel):
+    wallet_address: str
+    email: str
+    password: str
+    name: Optional[str] = "Admin Herbalyze"
+
 @app.get("/")
 def home():
     return {"message": "Welcome to Herbalyze FastAPI System RMP"}
+
+@app.post("/api/setup-admin")
+def setup_admin(req: SetupAdminRequest, db: Session = Depends(get_db)):
+    """
+    Endpoint one-time: buat akun Admin pertama kali setelah deploy contract.
+    Hanya bisa digunakan jika BELUM ada akun Admin di database.
+    """
+    # Cek apakah sudah ada admin
+    existing_admin = db.query(User).filter(User.role == "Admin").first()
+    if existing_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin sudah ada. Endpoint ini hanya bisa digunakan saat pertama kali setup."
+        )
+
+    wallet_lower = req.wallet_address.lower()
+
+    # Cek apakah wallet sudah terdaftar (mungkin role lain)
+    existing_user = db.query(User).filter(User.wallet_address == wallet_lower).first()
+    if existing_user:
+        # Update saja role-nya menjadi Admin
+        existing_user.role = "Admin"
+        existing_user.is_profile_complete = True
+        if req.email:
+            existing_user.email = req.email
+        if req.password:
+            existing_user.password_hash = get_password_hash(req.password)
+        db.commit()
+        db.refresh(existing_user)
+        return {"message": "Role berhasil diupdate menjadi Admin.", "user": existing_user.to_dict()}
+
+    # Cek apakah email sudah terdaftar
+    existing_email = db.query(User).filter(User.email == req.email).first()
+    if existing_email:
+        existing_email.wallet_address = wallet_lower
+        existing_email.role = "Admin"
+        existing_email.is_profile_complete = True
+        db.commit()
+        db.refresh(existing_email)
+        return {"message": "Wallet ditautkan dan role diupdate menjadi Admin.", "user": existing_email.to_dict()}
+
+    # Buat akun Admin baru
+    pw_hash = get_password_hash(req.password)
+    new_admin = User(
+        name=req.name,
+        email=req.email,
+        password_hash=pw_hash,
+        wallet_address=wallet_lower,
+        role="Admin",
+        is_profile_complete=True,
+    )
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+
+    return {
+        "message": "Admin berhasil dibuat! Sekarang Anda bisa login dengan email & password lalu verifikasi MetaMask.",
+        "user": new_admin.to_dict()
+    }
 
 @app.post("/api/register")
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
@@ -143,11 +208,14 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 def connect_wallet(req: ConnectWalletRequest, db: Session = Depends(get_db)):
     wallet_addr = req.wallet_address.lower()
 
-    existing_user = db.query(User).filter(User.wallet_address == wallet_addr).first()
-    if existing_user and existing_user.id != req.user_id:
-        raise HTTPException(status_code=400, detail="Wallet already linked to another account")
+    if req.user_id is not None:
+        existing_user = db.query(User).filter(User.wallet_address == wallet_addr).first()
+        if existing_user and existing_user.id != req.user_id:
+            raise HTTPException(status_code=400, detail="Wallet already linked to another account")
+        user = db.query(User).filter(User.id == req.user_id).first()
+    else:
+        user = db.query(User).filter(User.wallet_address == wallet_addr).first()
 
-    user = db.query(User).filter(User.id == req.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -866,3 +934,119 @@ def update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db)):
     db.refresh(user)
     
     return {"message": "Profil berhasil diperbarui", "user": user.to_dict()}
+
+
+# ======================== MEDICAL RECORD DRAFT ENDPOINTS ========================
+
+class SubmitDraftRequest(BaseModel):
+    patient_wallet: str
+    doctor_wallet: str
+    doctor_name: Optional[str] = None
+    doctor_instansi: Optional[str] = None
+    record_data: dict  # { diagnosis, gejala, obat, kondisiKhusus, catatanTambahan }
+
+
+@app.post("/api/medical-record/draft")
+def submit_draft(req: SubmitDraftRequest, db: Session = Depends(get_db)):
+    """
+    Dokter submit rekam medis → disimpan ke DB sebagai DRAFT (PENDING).
+    Belum masuk blockchain. Menunggu persetujuan pasien.
+    """
+    patient = db.query(User).filter(
+        func.lower(User.wallet_address) == req.patient_wallet.lower()
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Pasien tidak ditemukan")
+
+    # Cek apakah sudah ada draft PENDING untuk pasien ini dari dokter yang sama
+    existing = db.query(MedicalRecordDraft).filter(
+        func.lower(MedicalRecordDraft.patient_wallet) == req.patient_wallet.lower(),
+        func.lower(MedicalRecordDraft.doctor_wallet) == req.doctor_wallet.lower(),
+        MedicalRecordDraft.status == "PENDING"
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Sudah ada rekam medis yang menunggu persetujuan pasien ini. Tunggu pasien merespons dulu."
+        )
+
+    draft = MedicalRecordDraft(
+        patient_wallet=req.patient_wallet.lower(),
+        doctor_wallet=req.doctor_wallet.lower(),
+        doctor_name=req.doctor_name,
+        doctor_instansi=req.doctor_instansi,
+        record_data=req.record_data,
+        status="PENDING"
+    )
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+
+    return {
+        "message": "Rekam medis berhasil disimpan sebagai draft. Menunggu persetujuan pasien.",
+        "draft": draft.to_dict()
+    }
+
+
+@app.get("/api/medical-record/draft/pending/{patient_wallet}")
+def get_pending_drafts(patient_wallet: str, db: Session = Depends(get_db)):
+    """
+    Pasien mengambil semua draft PENDING miliknya.
+    Digunakan untuk polling notifikasi dan menampilkan preview rekam medis.
+    """
+    drafts = db.query(MedicalRecordDraft).filter(
+        func.lower(MedicalRecordDraft.patient_wallet) == patient_wallet.lower(),
+        MedicalRecordDraft.status == "PENDING"
+    ).order_by(MedicalRecordDraft.created_at.desc()).all()
+
+    return {
+        "count": len(drafts),
+        "drafts": [d.to_dict() for d in drafts]
+    }
+
+
+@app.post("/api/medical-record/draft/{draft_id}/reject")
+def reject_draft(draft_id: int, db: Session = Depends(get_db)):
+    """
+    Pasien MENOLAK draft → record langsung dihapus dari DB.
+    Blockchain tidak disentuh sama sekali.
+    Dokter harus mendapat consent ulang dan isi rekam medis dari awal.
+    """
+    draft = db.query(MedicalRecordDraft).filter(
+        MedicalRecordDraft.id == draft_id,
+        MedicalRecordDraft.status == "PENDING"
+    ).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft tidak ditemukan atau sudah diproses")
+
+    db.delete(draft)
+    db.commit()
+
+    return {
+        "message": "Draft rekam medis berhasil ditolak dan dihapus. Blockchain tidak diubah.",
+        "action": "REJECTED"
+    }
+
+
+@app.post("/api/medical-record/draft/{draft_id}/approve")
+def approve_draft(draft_id: int, tx_hash: str, db: Session = Depends(get_db)):
+    """
+    Pasien sudah approve & transaksi blockchain sukses di frontend (MetaMask).
+    Backend hanya menghapus draft dari DB sebagai konfirmasi.
+    tx_hash dikirim dari frontend sebagai bukti transaksi berhasil.
+    """
+    draft = db.query(MedicalRecordDraft).filter(
+        MedicalRecordDraft.id == draft_id,
+        MedicalRecordDraft.status == "PENDING"
+    ).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft tidak ditemukan atau sudah diproses")
+
+    db.delete(draft)
+    db.commit()
+
+    return {
+        "message": "Draft berhasil dihapus. Rekam medis sudah tersimpan di blockchain.",
+        "tx_hash": tx_hash,
+        "action": "APPROVED"
+    }

@@ -1,33 +1,57 @@
 import { NavLink } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Avatar from "./Avatar";
+
+const API = "http://localhost:8000";
 
 export default function Navbar() {
   const [profileData, setProfileData] = useState({
-  name: null, role: 'Patient', foto_profil: null
-});
+    name: null, role: 'Patient', foto_profil: null
+  });
 
-useEffect(() => {
-  const wallet = localStorage.getItem("user_wallet");
-  if (!wallet) return;
+  useEffect(() => {
+    const wallet = localStorage.getItem("user_wallet");
+    if (!wallet) return;
 
-  const cached = JSON.parse(localStorage.getItem('user_profile') || '{}');
-  if (cached.name || cached.role) {
-    setProfileData(prev => ({ ...prev, name: cached.name, role: cached.role || 'Patient', foto_profil: cached.foto_profil || null }));
-  }
+    const cached = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    if (cached.name || cached.role) {
+      setProfileData(prev => ({ ...prev, name: cached.name, role: cached.role || 'Patient', foto_profil: cached.foto_profil || null }));
+    }
 
-  fetch(`http://127.0.0.1:8000/api/profile/${wallet}`)
-    .then(res => res.json())
-    .then(data => {
-      setProfileData({ name: data.name || null, role: data.role || 'Patient', foto_profil: data.foto_profil || null });
-      localStorage.setItem('user_profile', JSON.stringify({ name: data.name, role: data.role, foto_profil: data.foto_profil || null }));
-    })
-    .catch(err => console.error("Navbar: gagal load profil", err));
-}, []);
+    fetch(`${API}/api/profile/${wallet}`)
+      .then(res => res.json())
+      .then(data => {
+        setProfileData({ name: data.name || null, role: data.role || 'Patient', foto_profil: data.foto_profil || null });
+        localStorage.setItem('user_profile', JSON.stringify({ name: data.name, role: data.role, foto_profil: data.foto_profil || null }));
+      })
+      .catch(err => console.error("Navbar: gagal load profil", err));
+  }, []);
 
-const { name, role, foto_profil } = profileData;
-
+  const { name, role, foto_profil } = profileData;
+  const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
   const isPatientMenuVisible = role === 'Patient' || role === 'Pending_Doctor' || role === 'Rejected_Doctor';
+
+  // ── Badge notifikasi draft pending ──
+  const [draftCount, setDraftCount] = useState(0);
+
+  const checkPendingDrafts = useCallback(async () => {
+    if (!userWallet || role === 'Doctor' || role === 'Admin') return;
+    try {
+      const res = await fetch(`${API}/api/medical-record/draft/pending/${userWallet}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setDraftCount(data.count || 0);
+    } catch {
+      // Silent fail — tidak perlu tampilkan error di navbar
+    }
+  }, [userWallet, role]);
+
+  useEffect(() => {
+    checkPendingDrafts();
+    // Polling setiap 30 detik
+    const interval = setInterval(checkPendingDrafts, 30000);
+    return () => clearInterval(interval);
+  }, [checkPendingDrafts]);
 
   return (
     <nav className="flex justify-between items-center py-6 px-12 border-b border-light-40 bg-white shadow-sm">
@@ -46,6 +70,7 @@ const { name, role, foto_profil } = profileData;
       </div>
 
       <div className="flex gap-10">
+        {/* Pasien / Pending / Rejected */}
         {isPatientMenuVisible && (
           <>
             <NavLink to="/home" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
@@ -57,8 +82,14 @@ const { name, role, foto_profil } = profileData;
             <NavLink to="/daftar-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Daftar Dokter
             </NavLink>
-            <NavLink to="/catatan-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
+            {/* Catatan Dokter + badge notifikasi */}
+            <NavLink to="/catatan-dokter" className={({ isActive }) => `relative text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Catatan Dokter
+              {draftCount > 0 && (
+                <span className="absolute -top-2 -right-4 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm animate-pulse">
+                  {draftCount}
+                </span>
+              )}
             </NavLink>
             <NavLink to="/riwayat" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Riwayat
@@ -66,7 +97,7 @@ const { name, role, foto_profil } = profileData;
           </>
         )}
 
-        {/* Dokter: Home, Data Personal, Catatan Dokter, Rekam Medis, Riwayat */}
+        {/* Dokter: Home, Data Personal, Daftar Dokter, Catatan Dokter, Rekam Medis, Riwayat */}
         {role === 'Doctor' && (
           <>
             <NavLink to="/home" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
@@ -115,6 +146,7 @@ const { name, role, foto_profil } = profileData;
           onClick={() => {
             localStorage.removeItem('user_wallet');
             localStorage.removeItem('user_profile');
+            localStorage.removeItem('admin_metamask_verified');
             window.location.href = '/';
           }}
           className="text-sm font-medium text-danger-30 border border-light-40 hover:bg-danger-10 hover:border-danger-30 px-5 py-2 rounded-full transition-all"

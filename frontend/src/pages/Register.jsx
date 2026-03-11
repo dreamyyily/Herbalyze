@@ -2,6 +2,37 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { connectWallet, signMessage } from '../utils/web3Helpers';
 
+// ─── Toast Component ────────────────────────────────────────────────────────
+function Toast({ toasts, removeToast }) {
+  return (
+    <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`pointer-events-auto flex items-start gap-4 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-md max-w-sm w-full
+            transform transition-all duration-500 animate-slide-in
+            ${t.type === "success" ? "bg-white/90 border-green-200 text-green-800" :
+              t.type === "error"   ? "bg-white/90 border-red-200 text-red-800" :
+              t.type === "warning" ? "bg-white/90 border-orange-200 text-orange-800" :
+                                     "bg-white/90 border-blue-200 text-blue-800"}`}
+        >
+          <span className="text-2xl mt-0.5 flex-shrink-0">
+            {t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}
+          </span>
+          <div className="flex-1">
+            {t.title && <p className="font-bold text-sm mb-0.5">{t.title}</p>}
+            <p className="text-sm leading-relaxed">{t.message}</p>
+          </div>
+          <button
+            onClick={() => removeToast(t.id)}
+            className="text-gray-400 hover:text-gray-600 transition text-lg leading-none flex-shrink-0 mt-0.5"
+          >×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const Register = () => {
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
@@ -9,6 +40,21 @@ const Register = () => {
     // Step 1: Register, Step 2: Link Wallet
     const [step, setStep] = useState(1);
     const [registeredUser, setRegisteredUser] = useState(null);
+
+    // toast notifikasi
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = (type, title, message) => {
+        const id = Date.now();
+        setToasts((prev) => [...prev, { id, type, title, message }]);
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 5000);
+    };
+
+    const removeToast = (id) => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+    };
 
     const [formData, setFormData] = useState({
         name: '',
@@ -25,7 +71,7 @@ const Register = () => {
         e.preventDefault();
         
         if (formData.password !== formData.confirmPassword) {
-            alert("Kata sandi tidak cocok! Silakan periksa kembali.");
+            showToast("error", "Validasi Gagal", "Kata sandi tidak cocok! Silakan periksa kembali.");
             return;
         }
 
@@ -45,7 +91,7 @@ const Register = () => {
             setStep(2);
 
         } catch (error) {
-            alert(error.message);
+            showToast("error", "Gagal Mendaftar", error.message || "Terdapat kesalahan saat mendaftar");
         } finally {
             setIsLoading(false);
         }
@@ -80,14 +126,25 @@ const Register = () => {
 
         } catch (error) {
             console.error("Kesalahan Tautkan Wallet:", error);
-            alert("Gagal menautkan wallet: " + error.message);
+            showToast("error", "Koneksi Gagal", "Gagal menautkan wallet: " + error.message);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex flex-col md:flex-row font-sans">
+        <div className="min-h-screen flex flex-col md:flex-row font-sans relative">
+            {/* Toast Notifikasi */}
+            <Toast toasts={toasts} removeToast={removeToast} />
+            {/* Animasi toast */}
+            <style>{`
+              @keyframes slide-in {
+                0% { transform: translateX(100%); opacity: 0; }
+                100% { transform: translateX(0); opacity: 1; }
+              }
+              .animate-slide-in { animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+            `}</style>
+            
             {/* Sisi Kiri: Formulir */}
             <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative z-10">
                 <div className="max-w-md w-full">

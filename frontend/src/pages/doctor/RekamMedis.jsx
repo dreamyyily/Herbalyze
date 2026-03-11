@@ -1,8 +1,47 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import CryptoJS from "crypto-js";
 import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
 import Avatar from "../../components/Avatar";
+
+// ─── Toast Component ────────────────────────────────────────────────────────
+function Toast({ toasts, removeToast }) {
+  return (
+    <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`pointer-events-auto flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-sm max-w-sm w-full
+            transform transition-all duration-500 animate-slide-in
+            ${t.type === "success" ? "bg-white border-green-200 text-green-800" :
+              t.type === "error"   ? "bg-white border-red-200 text-red-800" :
+              t.type === "warning" ? "bg-white border-orange-200 text-orange-800" :
+                                     "bg-white border-blue-200 text-blue-800"}`}
+        >
+          <span className="text-2xl mt-0.5 flex-shrink-0">
+            {t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}
+          </span>
+          <div className="flex-1">
+            {t.title && <p className="font-bold text-sm mb-0.5">{t.title}</p>}
+            <p className="text-sm leading-relaxed">{t.message}</p>
+          </div>
+          <button
+            onClick={() => removeToast(t.id)}
+            className="text-gray-300 hover:text-gray-500 text-lg leading-none flex-shrink-0 mt-0.5"
+          >×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const CONTRACT_ADDRESS = "0x88A7ABC3ebC0525761E324F1E85a64787fCdFB9d";
+const CONTRACT_ABI = [
+  "function addMedicalRecord(address _patientAddress, string memory _encryptedData) public",
+  "function getMedicalRecord(uint256 _recordId) public view returns (string memory encryptedData, address patientAddress, address uploader, uint256 timestamp)",
+  "function recordCount() public view returns (uint256)",
+  "event MedicalRecordAdded(uint256 indexed recordId, address indexed patientAddress, address indexed uploader, uint256 timestamp)"
+];
 
 export default function RekamMedis() {
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -18,11 +57,15 @@ export default function RekamMedis() {
 
   const [records, setRecords] = useState([]);
   const [isFetching, setIsFetching] = useState(false);
+  const [newRecordsCount, setNewRecordsCount] = useState(0);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // toast notifikasi
+  const [toasts, setToasts] = useState([]);
 
   const [patientWallet, setPatientWallet] = useState("");
   const [formData, setFormData] = useState({
@@ -33,6 +76,22 @@ export default function RekamMedis() {
     catatanTambahan: ""
   });
 
+  // Ref untuk menyimpan jumlah consent sebelumnya (untuk deteksi perubahan)
+  const prevConsentCountRef = useRef(null);
+  const prevRecordCountRef = useRef(null);
+
+  const showToast = useCallback((type, title, message) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, title, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  }, []);
+
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   useEffect(() => {
     if (userWallet) {
       fetchConsentedPatients();
@@ -40,13 +99,93 @@ export default function RekamMedis() {
     }
   }, [userWallet]);
 
+  // ── Polling otomatis setiap 30 detik ────────────────────────────────────────
+  useEffect(() => {
+    if (!userWallet) return;
+    const interval = setInterval(async () => {
+      // Cek consent pasien
+      try {
+        const contract = getReadOnlyContract();
+        const patients = await contract.getPatientsForDoctor(userWallet);
+        const uniquePatients = [...new Set(patients.map(p => p.toLowerCase()))];
+        const prevCount = prevConsentCountRef.current;
+
+        // Jika jumlah consent berkurang → pasien sudah approve & consent dicabut otomatis
+        if (prevCount !== null && uniquePatients.length < prevCount) {
+          setConsentedPatients(uniquePatients);
+          await refreshBlockchainSilent();
+        } else {
+          setConsentedPatients(uniquePatients);
+        }
+        prevConsentCountRef.current = uniquePatients.length;
+      } catch (err) {
+        console.warn("Polling consent gagal:", err);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [userWallet]);
+
+  // Refresh blockchain records secara silent (tanpa loading spinner besar)
+  const refreshBlockchainSilent = async () => {
+    try {
+      const contract = getReadOnlyContract();
+      const totalCount = await contract.recordCount();
+      const total = totalCount.toNumber();
+      if (total === 0) return;
+
+      const myRecords = [];
+      for (let i = total; i >= Math.max(1, total - 50); i--) {
+        try {
+          const [encryptedData, patientAddress, , timestamp] = await contract.getMedicalRecord(i);
+          const decryptKey = patientAddress.toLowerCase();
+          try {
+            const bytes = CryptoJS.AES.decrypt(encryptedData, decryptKey);
+            const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+            if (!decryptedString) continue;
+            const decryptedData = JSON.parse(decryptedString);
+
+            if ((decryptedData.doctor_wallet || "").toLowerCase() !== userWallet) continue;
+
+            myRecords.push({
+              id: i, patientAddress,
+              timestamp: new Date(timestamp.toNumber() * 1000),
+              isNew: false,
+              ...decryptedData
+            });
+          } catch { /* skip */ }
+        } catch { /* skip */ }
+      }
+
+      myRecords.sort((a, b) => b.timestamp - a.timestamp);
+
+      setRecords(prev => {
+        const prevIds = new Set(prev.map(r => r.id));
+        const newOnes = myRecords.filter(r => !prevIds.has(r.id));
+        if (newOnes.length > 0) {
+          setNewRecordsCount(c => c + newOnes.length);
+          showToast("info", "Rekam Medis Baru", `${newOnes.length} rekam medis baru berhasil disimpan ke Blockchain oleh pasien!`);
+          const merged = myRecords.map(r => ({
+            ...r,
+            isNew: newOnes.some(n => n.id === r.id)
+          }));
+          return merged;
+        }
+        return myRecords.length > 0 ? myRecords : prev;
+      });
+    } catch (err) {
+      console.warn("Silent refresh gagal:", err);
+    }
+  };
+
   const fetchConsentedPatients = async () => {
     setIsFetchingPatients(true);
     try {
       const contract = getReadOnlyContract();
       const patients = await contract.getPatientsForDoctor(userWallet);
       const uniquePatients = [...new Set(patients.map(p => p.toLowerCase()))];
-        setConsentedPatients(uniquePatients);
+      setConsentedPatients(uniquePatients);
+      prevConsentCountRef.current = uniquePatients.length;
 
       if (patients.length > 0) {
         await fetchPatientProfiles(patients);
@@ -84,26 +223,32 @@ export default function RekamMedis() {
 
       const totalCount = await contract.recordCount();
       const total = totalCount.toNumber();
-      if (total === 0) { setRecords([]); return; }
+      if (total === 0) { setRecords([]); prevRecordCountRef.current = 0; return; }
 
       const myRecords = [];
       for (let i = 1; i <= total; i++) {
         try {
           const [encryptedData, patientAddress, uploader, timestamp] = await contract.getMedicalRecord(i);
-          if (uploader.toLowerCase() !== userWallet) continue;
 
+          // Dekripsi menggunakan patientAddress sebagai key
           const decryptKey = patientAddress.toLowerCase();
           try {
             const bytes = CryptoJS.AES.decrypt(encryptedData, decryptKey);
             const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+            if (!decryptedString) continue;
             const decryptedData = JSON.parse(decryptedString);
+
+            // Filter: hanya tampilkan rekam medis yang ditulis oleh dokter ini
+            if ((decryptedData.doctor_wallet || "").toLowerCase() !== userWallet) continue;
+
             myRecords.push({
               id: i, patientAddress, uploader,
               timestamp: new Date(timestamp.toNumber() * 1000),
+              isNew: false,
               ...decryptedData
             });
           } catch {
-            console.warn(`Record #${i} gagal didekripsi.`);
+            // Record ini dienkripsi dengan key berbeda — skip
           }
         } catch (err) {
           console.warn(`Gagal baca record #${i}:`, err);
@@ -111,7 +256,9 @@ export default function RekamMedis() {
       }
 
       myRecords.sort((a, b) => b.timestamp - a.timestamp);
+      prevRecordCountRef.current = myRecords.length;
       setRecords(myRecords);
+      setNewRecordsCount(0);
     } catch (err) {
       console.error("Gagal fetch blockchain:", err);
     } finally {
@@ -130,13 +277,13 @@ export default function RekamMedis() {
     setActiveTab("rekam");
   };
 
-  const handleSimpanKeBlockchain = async () => {
+  const handleSubmitDraft = async () => {
     if (!patientWallet || !formData.diagnosis || !formData.gejala || !formData.obat || !formData.kondisiKhusus) {
-      alert("Harap lengkapi semua field yang bertanda bintang (*).");
+      showToast("error", "Validasi Gagal", "Harap lengkapi semua field yang bertanda bintang (*)");
       return;
     }
     if (!patientWallet.startsWith("0x") || patientWallet.length !== 42) {
-      alert("Format Wallet Address Pasien tidak valid!");
+      showToast("error", "Format Tidak Valid", "Format Wallet Address Pasien tidak valid!");
       return;
     }
 
@@ -144,45 +291,49 @@ export default function RekamMedis() {
       p => p.toLowerCase() === patientWallet.toLowerCase()
     );
     if (!isConsented) {
-      alert("❌ Pasien belum memberikan izin kepada Anda. Rekam medis tidak bisa ditambahkan.");
+      showToast("error", "Izin Ditolak", "Pasien belum memberikan izin kepada Anda. Rekam medis tidak bisa ditambahkan.");
       return;
     }
 
     try {
       setIsLoading(true);
-      const medicalDataObj = {
-        diagnosis: formData.diagnosis,
-        gejala: formData.gejala,
-        obat: formData.obat,
-        kondisiKhusus: formData.kondisiKhusus,
-        catatanTambahan: formData.catatanTambahan,
-        dokterName: profile.nama || "Dokter Anonim",
-        instansi: profile.instansi || "Rumah Sakit"
+
+      const payload = {
+        patient_wallet: patientWallet.toLowerCase(),
+        doctor_wallet: userWallet,
+        doctor_name: profile.name || "Dokter Anonim",
+        doctor_instansi: profile.nama_instansi || profile.instansi || "Rumah Sakit",
+        record_data: {
+          diagnosis: formData.diagnosis,
+          gejala: formData.gejala,
+          obat: formData.obat,
+          kondisiKhusus: formData.kondisiKhusus,
+          catatanTambahan: formData.catatanTambahan,
+        }
       };
 
-      const cipherText = CryptoJS.AES.encrypt(
-        JSON.stringify(medicalDataObj),
-        patientWallet.toLowerCase()
-      ).toString();
+      const res = await fetch("http://localhost:8000/api/medical-record/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-      const contract = await getSignerContract();
+      const data = await res.json();
 
-      const tx = await contract.addMedicalRecord(patientWallet, cipherText);
-      alert("Memproses transaksi... Mohon tunggu.");
-      await tx.wait();
-      alert("✅ Rekam medis berhasil disimpan ke Blockchain!");
+      if (!res.ok) {
+        showToast("error", "Gagal Submit", data.error || data.detail || "Terjadi kesalahan saat memproses data.");
+        return;
+      }
 
+      showToast("success", "Draft Tersimpan!", "Rekam medis berhasil disimpan. Pasien akan mendapat notifikasi untuk memverifikasi data ini sebelum masuk ke Blockchain.");
       setIsFormOpen(false);
       setFormData({ diagnosis: "", gejala: "", obat: "", kondisiKhusus: "", catatanTambahan: "" });
       setPatientWallet("");
       fetchRecordsFromBlockchain();
+      fetchConsentedPatients();
     } catch (error) {
-      console.error("Gagal simpan:", error);
-      if (error.message?.includes("belum memberikan izin")) {
-        alert("❌ Pasien belum memberikan izin. Minta pasien untuk memberi izin di halaman Daftar Dokter.");
-      } else {
-        alert("❌ Gagal menyimpan. Lihat console untuk detail.");
-      }
+      console.error("Gagal submit draft:", error);
+      showToast("error", "Server Error", "Gagal menyimpan draft rekam medis. Cek koneksi server.");
     } finally {
       setIsLoading(false);
     }
@@ -200,6 +351,16 @@ export default function RekamMedis() {
 
   return (
     <MainLayout>
+      {/* Toast Notifikasi */}
+      <Toast toasts={toasts} removeToast={removeToast} />
+      {/* Animasi toast */}
+      <style>{`
+        @keyframes slide-in-right {
+          from { opacity: 0; transform: translateX(100px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        .animate-slide-in { animation: slide-in-right 0.4s cubic-bezier(.21,1.02,.73,1) both; }
+      `}</style>
       <div className="max-w-6xl mx-auto px-4 mt-16 pb-20">
 
         {!isFormOpen && !selectedRecord && (
@@ -222,16 +383,13 @@ export default function RekamMedis() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <p className="text-xs text-gray-400 mb-1 uppercase tracking-wide">Dokter</p>
-                  <p className="font-semibold text-gray-800">{selectedRecord.dokterName || "-"}</p>
+                  <p className="font-semibold text-gray-800">{selectedRecord.dokterName || selectedRecord.doctor_name || "-"}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <p className="text-xs text-gray-400 mb-1 uppercase tracking-wide">Tanggal</p>
                   <p className="font-semibold text-gray-800">{formatTanggal(selectedRecord.timestamp)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-5 border border-blue-100 col-span-full">
-                  <p className="text-xs text-blue-500 mb-1 uppercase tracking-wide font-semibold">Wallet Pasien</p>
-                  <p className="text-gray-800 font-mono text-sm break-all">{selectedRecord.patientAddress}</p>
-                </div>
+
                 <div className="bg-green-50 rounded-xl p-5 border border-green-100 col-span-full">
                   <p className="text-xs text-green-500 mb-1 uppercase tracking-wide font-semibold">Diagnosis</p>
                   <p className="text-gray-800">{selectedRecord.diagnosis || "-"}</p>
@@ -254,10 +412,7 @@ export default function RekamMedis() {
                     <p className="text-gray-800">{selectedRecord.catatanTambahan}</p>
                   </div>
                 )}
-                <div className="col-span-full bg-blue-50 rounded-xl p-5 border border-blue-100">
-                  <p className="text-xs text-blue-400 mb-1 uppercase tracking-wide">🔒 Verifikasi Blockchain</p>
-                  <p className="text-xs text-gray-500 break-all">Record ID #{selectedRecord.id} · Uploader: {selectedRecord.uploader}</p>
-                </div>
+
               </div>
             </div>
           )}
@@ -293,7 +448,7 @@ export default function RekamMedis() {
                           const p = patientProfiles[norm];
                           return (
                             <option key={wallet} value={wallet}>
-                              {p ? `${p.name} (${norm.substring(0, 6)}...${norm.slice(-4)})` : `${norm.substring(0, 6)}...${norm.slice(-4)}`}
+                              {p ? p.name : `Pasien (${norm.substring(0, 6)}...${norm.slice(-4)})`}
                             </option>
                           );
                         })}
@@ -309,9 +464,7 @@ export default function RekamMedis() {
                       ⚠️ Belum ada pasien yang memberikan izin kepada Anda. Minta pasien untuk membuka halaman <strong>Daftar Dokter</strong> dan klik "Beri Izin".
                     </div>
                   )}
-                  {patientWallet && (
-                    <p className="text-xs font-mono text-gray-400 mt-2 break-all">Wallet: {patientWallet}</p>
-                  )}
+
                 </div>
 
                 <div>
@@ -336,7 +489,7 @@ export default function RekamMedis() {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Resep Obat <span className="text-red-500">*</span>
                   </label>
-                  <textarea type="text" name="obat" value={formData.obat} onChange={handleInputChange}
+                  <textarea name="obat" value={formData.obat} onChange={handleInputChange}
                     placeholder="Contoh: Paracetamol 500mg, Amoxicillin 3x1, atau herbal sesuai resep dokter..."
                     className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition"
                   />
@@ -351,11 +504,8 @@ export default function RekamMedis() {
                       className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition appearance-none"
                     >
                       <option value="" disabled>Pilih Kondisi Khusus</option>
-
                       {specialConditionOptions.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
+                        <option key={index} value={option}>{option}</option>
                       ))}
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-500">
@@ -379,7 +529,7 @@ export default function RekamMedis() {
 
               <div className="mt-8 flex justify-end">
                 <button
-                  onClick={handleSimpanKeBlockchain}
+                  onClick={handleSubmitDraft}
                   disabled={isLoading || !patientWallet || consentedPatients.length === 0}
                   className={`${
                     isLoading || !patientWallet || consentedPatients.length === 0
@@ -387,7 +537,7 @@ export default function RekamMedis() {
                       : "bg-primary-40 hover:bg-primary-50"
                   } text-white px-10 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform active:scale-95`}
                 >
-                  {isLoading ? "⏳ Mengamankan Data... Tunggu MetaMask" : "🔒 Simpan & Enkripsi ke Blockchain"}
+                  {isLoading ? "⏳ Menyimpan Draft..." : "📋 Kirim ke Pasien untuk Diverifikasi"}
                 </button>
               </div>
             </div>
@@ -412,8 +562,8 @@ export default function RekamMedis() {
                   )}
                 </button>
                 <button
-                  onClick={() => setActiveTab("rekam")}
-                  className={`pb-3 px-4 font-semibold text-sm border-b-2 transition-colors ${
+                  onClick={() => { setActiveTab("rekam"); setNewRecordsCount(0); }}
+                  className={`pb-3 px-4 font-semibold text-sm border-b-2 transition-colors flex items-center gap-1.5 ${
                     activeTab === "rekam"
                       ? "border-primary-40 text-primary-40"
                       : "border-transparent text-gray-400 hover:text-gray-600"
@@ -421,8 +571,13 @@ export default function RekamMedis() {
                 >
                   📋 Riwayat Rekam Medis
                   {records.length > 0 && (
-                    <span className="ml-2 bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                    <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
                       {records.length}
+                    </span>
+                  )}
+                  {newRecordsCount > 0 && (
+                    <span className="bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
+                      +{newRecordsCount} Baru!
                     </span>
                   )}
                 </button>
@@ -463,9 +618,6 @@ export default function RekamMedis() {
                               <Avatar name={p?.name} fotoProfil={p?.foto_profil} size="md" />
                               <div>
                                 <p className="font-semibold text-gray-800">{p?.name || "Pasien"}</p>
-                                <p className="text-xs font-mono text-gray-400">
-                                  {norm.substring(0, 6)}...{norm.slice(-4)}
-                                </p>
                               </div>
                               <span className="ml-auto bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
                                 ✓ Diizinkan
@@ -517,7 +669,7 @@ export default function RekamMedis() {
                     <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                       <p className="text-4xl mb-3">📋</p>
                       <p className="text-gray-500 font-medium">Belum ada rekam medis</p>
-                      <p className="text-gray-400 text-sm mt-1">Tambahkan rekam medis dari tab "Pasien Saya"</p>
+                      <p className="text-gray-400 text-sm mt-1">Rekam medis akan muncul di sini setelah pasien menyetujui</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -525,7 +677,7 @@ export default function RekamMedis() {
                         <thead>
                           <tr className="border-b border-gray-100">
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Tanggal</th>
-                            <th className="text-left py-3 px-4 text-gray-400 font-medium">Wallet Pasien</th>
+                            <th className="text-left py-3 px-4 text-gray-400 font-medium">Pasien</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Diagnosis</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Resep Obat</th>
                             <th className="text-left py-3 px-4 text-gray-400 font-medium">Kondisi</th>
@@ -534,12 +686,25 @@ export default function RekamMedis() {
                         </thead>
                         <tbody>
                           {filteredRecords.map((record) => (
-                            <tr key={record.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                              <td className="py-4 px-4 text-gray-600">{formatTanggal(record.timestamp)}</td>
-                              <td className="py-4 px-4 font-mono text-gray-500 text-xs">
-                                {record.patientAddress
-                                  ? record.patientAddress.substring(0, 6) + '...' + record.patientAddress.slice(-4)
-                                  : "-"}
+                            <tr
+                              key={record.id}
+                              className={`border-b transition ${
+                                record.isNew
+                                  ? "border-green-100 bg-green-50 hover:bg-green-100"
+                                  : "border-gray-50 hover:bg-gray-50"
+                              }`}
+                            >
+                              <td className="py-4 px-4 text-gray-600">
+                                {formatTanggal(record.timestamp)}
+                                {record.isNew && (
+                                  <span className="ml-2 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">Baru</span>
+                                )}
+                              </td>
+                              <td className="py-4 px-4 text-gray-700 font-medium">
+                                {patientProfiles[record.patientAddress?.toLowerCase()]?.name ||
+                                  (record.patientAddress
+                                    ? record.patientAddress.substring(0, 6) + '...' + record.patientAddress.slice(-4)
+                                    : "-")}
                               </td>
                               <td className="py-4 px-4 text-gray-600 max-w-[200px] truncate">{record.diagnosis || "-"}</td>
                               <td className="py-4 px-4 text-gray-600 max-w-[150px] truncate">{record.obat || "-"}</td>

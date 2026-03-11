@@ -101,3 +101,34 @@ class SearchHistory(Base):  # <--- Ganti db.Model menjadi Base
 
     def __repr__(self):
         return f"<SearchHistory {self.wallet_address} - {self.created_at}>"
+
+
+class MedicalRecordDraft(Base):
+    """
+    Tabel staging rekam medis.
+    Dokter submit → tersimpan di sini dengan status PENDING.
+    Pasien ACC → data dikirim ke blockchain, record ini dihapus.
+    Pasien TOLAK → record ini dihapus, blockchain tidak disentuh.
+    """
+    __tablename__ = 'medical_record_drafts'
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_wallet = Column(String(42), nullable=False, index=True)  # wallet pasien
+    doctor_wallet = Column(String(42), nullable=False)                # wallet dokter
+    doctor_name = Column(String(255), nullable=True)                  # nama dokter
+    doctor_instansi = Column(String(255), nullable=True)              # instansi dokter
+    record_data = Column(JSON, nullable=False)                        # isi rekam medis (JSON)
+    status = Column(String(20), default="PENDING", nullable=False)    # PENDING / APPROVED / REJECTED
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "patient_wallet": self.patient_wallet,
+            "doctor_wallet": self.doctor_wallet,
+            "doctor_name": self.doctor_name,
+            "doctor_instansi": self.doctor_instansi,
+            "record_data": self.record_data,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

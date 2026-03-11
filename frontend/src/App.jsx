@@ -92,7 +92,14 @@ const AppContent = () => {
                 const address = await checkWalletConnection();
                 const storedWallet = localStorage.getItem('user_wallet');
                 if (address && storedWallet && address.toLowerCase() === storedWallet.toLowerCase()) {
-                    navigate('/home');
+                    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+                    const adminVerified = localStorage.getItem('admin_metamask_verified') === 'true';
+                    if (profile.role === 'Admin' && adminVerified) {
+                        navigate('/admin');
+                    } else if (profile.role !== 'Admin') {
+                        navigate('/home');
+                    }
+                    // Jika Admin tapi belum verify MetaMask → tetap di halaman login
                 }
             }
         };
@@ -104,10 +111,12 @@ const AppContent = () => {
             if (!newAccount) {
                 localStorage.removeItem('user_wallet');
                 localStorage.removeItem('user_profile');
+                localStorage.removeItem('admin_metamask_verified');
                 if (location.pathname !== '/') navigate('/');
             } else {
                 localStorage.removeItem('user_wallet');
                 localStorage.removeItem('user_profile');
+                localStorage.removeItem('admin_metamask_verified');
                 navigate('/');
             }
         });
