@@ -13,10 +13,10 @@ function getAvatarColor(name) {
 
 export default function Avatar({ name, fotoProfil, size = "md", className = "" }) {
   const sizeClass = {
-    sm: "w-10 h-10 text-xs", //tabel
-    md: "w-11 h-11 text-sm", //navbar
-    lg: "w-12 h-12 text-sm", //card pasien
-    xl: "w-32 h-32 text-4xl", //detail
+    sm: "w-10 h-10 text-xs", 
+    md: "w-11 h-11 text-sm", 
+    lg: "w-12 h-12 text-sm", 
+    xl: "w-32 h-32 text-4xl", 
   }[size] || "w-11 h-11 text-sm";
 
   return (

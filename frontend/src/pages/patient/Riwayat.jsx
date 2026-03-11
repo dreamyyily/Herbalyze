@@ -356,9 +356,9 @@ export default function Riwayat() {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold text-dark-50 mb-4 tracking-tight leading-tight">
-            Riwayat <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-60 to-primary-40">Kesehatan</span>
+            Riwayat <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-60 to-primary-40">Pencarian</span>
           </h1>
-          <p className="text-dark-30 text-lg md:text-xl max-w-2xl mx-auto font-medium">Rekam jejak pintar analisis kondisi medis dan kumpulan resep herbal Anda.</p>
+          <p className="text-dark-30 text-lg md:text-xl max-w-2xl mx-auto font-medium">Semua hasil analisis herbal Anda tercatat di sini, aman dan mudah diakses.</p>
 
           {/* Stats Keamanan */}
           {!isLoading && !error && histories.length > 0 && blockchainCount > 0 && (
