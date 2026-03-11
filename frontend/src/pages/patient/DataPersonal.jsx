@@ -34,6 +34,7 @@ export default function DataPersonal() {
 
   const [doctorRequest, setDoctorRequest] = useState({ nomorSTR: "", institusi: "", dokumen: null });
   const [formData, setFormData] = useState({ photo: null, nik: "", nama: "", tempatLahir: "", tanggalLahir: "", email: "", nomorHp: "", jenisKelamin: "", alergiHerbal: [] });
+  const [originalData, setOriginalData] = useState(null);
 
   const requiredFields = { nik: "NIK", nama: "Nama Lengkap", tanggalLahir: "Tanggal Lahir", email: "Email", alergiHerbal: "Alergi Herbal" };
   const [herbsOptions, setHerbsOptions] = useState([]);
@@ -50,6 +51,18 @@ export default function DataPersonal() {
       .then((res) => res.json())
       .then((data) => {
         setFormData({
+          photo: data.foto_profil || null,
+          nik: data.nik || "",
+          nama: data.name || "",
+          tempatLahir: data.tempat_lahir || "",
+          tanggalLahir: data.tanggal_lahir || "",
+          email: data.email || "",
+          nomorHp: data.nomor_hp || "",
+          jenisKelamin: data.jenis_kelamin || "",
+          alergiHerbal: data.alergi_herbal || [],
+          role: data.role || "Patient",
+        });
+        setOriginalData({
           photo: data.foto_profil || null,
           nik: data.nik || "",
           nama: data.name || "",
@@ -216,6 +229,7 @@ export default function DataPersonal() {
       if (location.state?.fromHomeLock) {
         navigate("/", { state: { profileUpdated: true } });
       } else {
+        setOriginalData({ ...formData });
         setIsEdit(false);
         showToast('success', 'Penyimpanan Berhasil', 'Data profil personal Anda telah berhasil diperbarui.');
       }
@@ -223,6 +237,18 @@ export default function DataPersonal() {
       showToast('danger', 'Gagal Menyimpan', err.message);
     }
   };
+
+  const handleBatal = () => {
+    if (originalData) {
+      setFormData(originalData);
+      setPhotoPreview(originalData.photo);
+    }
+    setErrors({});
+    if (location.state?.fromHomeLock) navigate("/");
+    else setIsEdit(false);
+  };
+
+  const today = new Date().toISOString().split("T")[0];
 
   if (!isEdit) {
     return (
@@ -278,7 +304,7 @@ export default function DataPersonal() {
                       Ajukan Ulang Verifikasi
                     </button>
                     <button onClick={handleDismissRejection} className="bg-transparent hover:bg-red-100 text-red-600 border border-red-200 px-6 py-3 rounded-xl font-semibold transition-all">
-                      Tetap Jadi Pasien Biasa
+                      Batalkan Pengajuan
                     </button>
                   </div>
                 </div>
@@ -382,10 +408,7 @@ export default function DataPersonal() {
         <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-light-40 relative z-10">
           <div className="flex justify-between items-center mb-10">
             <h2 className="text-2xl md:text-3xl font-extrabold text-dark-50">Edit Profil Personal</h2>
-            <button onClick={() => {
-              if (location.state?.fromHomeLock) navigate("/");
-              else setIsEdit(false);
-            }} className="text-gray-400 hover:text-dark-50 transition font-medium">Batal Edit</button>
+            <button onClick={handleBatal} className="text-gray-400 hover:text-dark-50 transition font-medium">Batal Edit</button>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-6 mb-12 bg-gray-50 p-6 rounded-3xl border border-gray-100">
@@ -418,7 +441,7 @@ export default function DataPersonal() {
               <InputField label="Nama Lengkap Sesuai ID (KTP atau Paspor)" name="nama" placeholder="Tuliskan nama lengkap..." value={formData.nama} onChange={handleInputChange} required error={errors.nama} />
             </div>
             <InputField label="Tempat Lahir" name="tempatLahir" placeholder="Contoh: Jakarta" value={formData.tempatLahir} onChange={handleInputChange} />
-            <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" value={formData.tanggalLahir} onChange={handleInputChange} required error={errors.tanggalLahir} />
+            <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" value={formData.tanggalLahir} onChange={handleInputChange} max={today} required error={errors.tanggalLahir} />
             <InputField label="Email Terdaftar" name="email" type="email" placeholder="mail@example.com" value={formData.email} disabled required error={errors.email} />
             <InputField label="Nomor Handphone" name="nomorHp" placeholder="Contoh: 08123456789" value={formData.nomorHp} onChange={handleInputChange} />
             <SelectField label="Jenis Kelamin" options={genderOptions} value={formData.jenisKelamin} onChange={(value) => handleSelectChange("jenisKelamin", value)} />
@@ -427,10 +450,7 @@ export default function DataPersonal() {
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 mt-16 pt-10 border-t border-gray-100">
             <button 
-              onClick={() => {
-                if (location.state?.fromHomeLock) navigate("/");
-                else setIsEdit(false);
-              }} 
+              onClick={handleBatal}
               className="w-full sm:w-auto px-8 py-4 text-gray-500 hover:bg-gray-100 rounded-xl font-bold transition-colors"
             >
               Batal

@@ -1,4 +1,4 @@
-export default function InputField({ label, name, placeholder,type = "text", value, onChange, required = false, error}) {
+export default function InputField({ label, name, placeholder,type = "text", value, onChange, required = false, error, max, disabled}) {
   return (
     <div className="relative">
       <div className={`relative rounded-xl border px-5 py-4 transition-all duration-200 
@@ -17,6 +17,8 @@ export default function InputField({ label, name, placeholder,type = "text", val
           value={value}
           placeholder={placeholder}
           onChange={onChange}
+          max={max}
+          disabled={disabled}
           className="w-full bg-transparent outline-none text-dark-50 placeholder:text-dark-30"
         />
       </div>

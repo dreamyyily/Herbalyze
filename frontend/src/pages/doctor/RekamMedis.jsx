@@ -5,7 +5,18 @@ import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
 import Avatar from "../../components/Avatar";
 
 export default function RekamMedis() {
-  const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+  const [profile, setProfile] = useState({});
+  useEffect(() => {
+    const wallet = localStorage.getItem("user_wallet");
+    if (!wallet) return;
+    
+    fetch(`http://127.0.0.1:8000/api/profile/${wallet}`)
+      .then(res => res.json())
+      .then(data => {
+        setProfile({ name: data.name, instansi: data.instansi || "Rumah Sakit" });
+      })
+      .catch(err => console.error("Gagal load profil dokter:", err));
+  }, []);
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
 
   const [activeTab, setActiveTab] = useState("pasien");
@@ -156,7 +167,7 @@ export default function RekamMedis() {
         obat: formData.obat,
         kondisiKhusus: formData.kondisiKhusus,
         catatanTambahan: formData.catatanTambahan,
-        dokterName: profile.nama || "Dokter Anonim",
+        dokterName: profile.name || "Dokter Anonim",
         instansi: profile.instansi || "Rumah Sakit"
       };
 

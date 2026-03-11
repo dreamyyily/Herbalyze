@@ -115,7 +115,7 @@ export default function CatatanDokter() {
           <div className="text-center mb-12 animate-fade-in">
             <span className="bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-4 inline-block">Privasi Terjamin</span>
             <h1 className="text-3xl md:text-4xl font-extrabold text-dark-50 mb-3">Catatan Medis Anda</h1>
-            <p className="text-gray-500 max-w-xl mx-auto">Semua rekam medis di bawah ini dienkripsi dan tersimpan secara permanen & aman di dalam jaringan Web3 Blockchain.</p>
+            <p className="text-gray-500 max-w-xl mx-auto">Semua rekam medis di bawah ini tersimpan dengan aman untuk menjaga privasi dan keamanan data kesehatan Anda</p>
           </div>
         )}
 
