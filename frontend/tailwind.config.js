@@ -23,6 +23,13 @@ module.exports = {
           40: '#FFB92C',
           50: 'var(--color-warning-50)',
         },
+        yellow: {
+          50: '#FEFCE8',
+          200: '#FEF08A',
+          500: '#EAB308',
+          700: '#A16207',
+          800: '#854D0E',
+        },
         dark: {
           10: '#F1F3F5',
           20: '#E2E4E7',

@@ -38,11 +38,6 @@ const { name, role, foto_profil } = profileData;
             🩺 Dokter Aktif
           </span>
         )}
-        {role === 'Pending_Doctor' && (
-          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full">
-            ⏳ Menunggu Verifikasi
-          </span>
-        )}
       </div>
 
       <div className="flex gap-10">
@@ -115,6 +110,7 @@ const { name, role, foto_profil } = profileData;
           onClick={() => {
             localStorage.removeItem('user_wallet');
             localStorage.removeItem('user_profile');
+            sessionStorage.removeItem('dismiss_pending_banner');
             window.location.href = '/';
           }}
           className="text-sm font-medium text-danger-30 border border-light-40 hover:bg-danger-10 hover:border-danger-30 px-5 py-2 rounded-full transition-all"
