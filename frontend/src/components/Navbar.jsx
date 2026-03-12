@@ -31,11 +31,13 @@ export default function Navbar() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
   const isPatientMenuVisible = role === 'Patient' || role === 'Pending_Doctor' || role === 'Rejected_Doctor';
 
-  // ── Badge notifikasi draft pending ──
+  // ── Badge notifikasi draft pending (untuk PASIEN & DOKTER: menu Catatan Dokter) ──
   const [draftCount, setDraftCount] = useState(0);
 
   const checkPendingDrafts = useCallback(async () => {
-    if (!userWallet || role === 'Doctor' || role === 'Admin') return;
+    // Berlaku untuk Pasien DAN Dokter (keduanya punya Catatan Dokter)
+    // Hanya skip untuk Admin
+    if (!userWallet || role === 'Admin') return;
     try {
       const res = await fetch(`${API}/api/medical-record/draft/pending/${userWallet}`);
       if (!res.ok) return;
@@ -92,7 +94,7 @@ export default function Navbar() {
           </>
         )}
 
-        {/* Dokter: Home, Data Personal, Daftar Dokter, Catatan Dokter, Rekam Medis, Riwayat */}
+        {/* Dokter: Home, Data Personal, Daftar Dokter, Catatan Dokter + badge, Rekam Medis, Riwayat */}
         {role === 'Doctor' && (
           <>
             <NavLink to="/home" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
@@ -104,8 +106,14 @@ export default function Navbar() {
             <NavLink to="/daftar-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Daftar Dokter
             </NavLink>
-            <NavLink to="/catatan-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
+            {/* Catatan Dokter + badge notifikasi untuk dokter */}
+            <NavLink to="/catatan-dokter" className={({ isActive }) => `relative text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Catatan Dokter
+              {draftCount > 0 && (
+                <span className="absolute -top-2 -right-4 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm animate-pulse">
+                  {draftCount}
+                </span>
+              )}
             </NavLink>
             <NavLink to="/rekam-medis" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Rekam Medis

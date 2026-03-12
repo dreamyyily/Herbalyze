@@ -170,7 +170,13 @@ const Login = () => {
                 localStorage.setItem('user_profile', JSON.stringify(data.user));
             }
 
-            navigate('/home');
+            // ✅ FIX: Cek role user sebelum redirect
+            if (data.user && data.user.role === 'Admin') {
+                localStorage.setItem('admin_metamask_verified', 'true');
+                navigate('/admin');
+            } else {
+                navigate('/home');
+            }
 
         } catch (error) {
             console.error("Kesalahan Masuk MetaMask:", error);

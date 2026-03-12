@@ -126,7 +126,7 @@ const Register = () => {
 
         } catch (error) {
             console.error("Kesalahan Tautkan Wallet:", error);
-            showToast("error", "Koneksi Gagal", "Gagal menautkan wallet: " + error.message);
+            showToast("error", "Koneksi Gagal", "Gagal menghubungkan akun: " + error.message);
         } finally {
             setIsLoading(false);
         }
@@ -252,9 +252,9 @@ const Register = () => {
                                 </div>
                             </div>
                             
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Hubungkan Wallet Anda</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Aktivasi Akun Anda</h2>
                             <p className="text-gray-500 mb-8">
-                                Langkah terakhir! Tautkan dompet MetaMask Anda untuk mengamankan data medis ke dalam jaringan Blockchain.
+                                Langkah terakhir! Hubungkan dompet digital Anda (ekstensi browser MetaMask) untuk mengaktifkan keamanan penuh pada data medis Anda.
                             </p>
 
                             <button 
@@ -263,7 +263,7 @@ const Register = () => {
                                 className="w-full flex justify-center items-center gap-3 py-3 px-6 border border-gray-300 rounded-xl text-gray-800 bg-white hover:bg-gray-50 shadow-md transform transition hover:scale-105"
                             >
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-6 h-6" />
-                                <span className="font-bold">Hubungkan MetaMask</span>
+                                <span className="font-bold">Aktivasi dengan Dompet Digital</span>
                             </button>
                         </div>
                     )}
@@ -281,7 +281,7 @@ const Register = () => {
                     {/* Tagline utama tetap bahasa Inggris karena nama brand, atau bisa disesuaikan */}
                     <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Herbalyze</h2>
                     <p className="text-white text-lg font-medium bg-white/20 p-5 rounded-xl backdrop-blur-sm shadow-lg leading-relaxed">
-                        "Data kesehatan Anda dijamin aman oleh teknologi Blockchain. Rasakan pengalaman masa depan dalam rekomendasi pengobatan herbal."
+                        "Data kesehatan Anda dijamin aman dengan enkripsi tingkat tinggi. Rasakan pengalaman masa depan dalam rekomendasi pengobatan herbal."
                     </p>
                 </div>
             </div>

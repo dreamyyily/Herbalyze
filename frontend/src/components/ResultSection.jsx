@@ -430,19 +430,31 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                             }
 
                             // Jika berbentuk Link (bisa di-klik)
-                            return sourceLinks.length > 0 ? sourceLinks.map((link, idx) => (
-                              <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-3 p-3 rounded-xl bg-light-20 hover:bg-primary-10 text-sm text-primary-40 hover:text-primary-60 transition-colors border border-transparent hover:border-primary-20">
+                            const renderedLinks = sourceLinks.map((link, idx) => (
+                              <a key={`link-${idx}`} href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-3 p-3 rounded-xl bg-light-20 hover:bg-primary-10 text-sm text-primary-40 hover:text-primary-60 transition-colors border border-transparent hover:border-primary-20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                                 <span className="line-clamp-2 leading-snug break-all font-medium">{sourceLabels[idx] || link}</span>
                               </a>
-                            )) : 
-                            // Jika berbentuk Label Teks Biasa (Buku/Jurnal Offline)
-                            sourceLabels.map((label, idx) => (
-                              <div key={idx} className="inline-flex items-start gap-3 p-3 rounded-xl bg-light-20 text-sm text-dark-40 border border-light-40">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 text-dark-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                                <span className="leading-snug">{label}</span>
-                              </div>
                             ));
+                            
+                            // Jika berbentuk Label Teks Biasa (Buku/Jurnal Offline)
+                            const renderedLabels = sourceLabels.map((label, idx) => {
+                              // Abaikan label jika sudah dipakai bersamaan dengan link di indeks yang sama
+                              if (sourceLinks[idx]) return null;
+                              return (
+                                <div key={`label-${idx}`} className="inline-flex items-start gap-3 p-3 rounded-xl bg-light-20 text-sm text-dark-40 border border-light-40">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 text-dark-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                  <span className="leading-snug">{label}</span>
+                                </div>
+                              );
+                            });
+
+                            return (
+                              <>
+                                {renderedLinks}
+                                {renderedLabels}
+                              </>
+                            );
                           })()}
                         </div>
                       </div>

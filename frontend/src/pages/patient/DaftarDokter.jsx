@@ -145,7 +145,7 @@ export default function DaftarDokter() {
       const errMsg = err?.data?.message || err?.message || "";
 
       if (revertReason.includes("belum di-ACC") || errMsg.includes("belum di-ACC")) {
-        showToast("error", "Akun Belum Disetujui", "Wallet address Anda perlu di-approve terlebih dahulu oleh Administrator Herbalyze sebelum bisa memberikan izin ke dokter.");
+        showToast("error", "Akun Belum Disetujui", "Akun Anda perlu disetujui oleh Administrator Herbalyze terlebih dahulu sebelum bisa memberikan izin ke dokter.");
       } else if (revertReason.includes("Consent sudah diberikan") || errMsg.includes("Consent sudah diberikan")) {
         showToast("info", "Info", "Izin sudah diberikan sebelumnya.");
       } else if (revertReason.includes("Consent belum pernah") || errMsg.includes("Consent belum pernah")) {
@@ -192,7 +192,7 @@ export default function DaftarDokter() {
             <p className="text-sm font-semibold text-blue-700">Kontrol Penuh Ada di Tangan Anda</p>
             <p className="text-sm text-blue-600">
               Hanya dokter yang Anda beri izin yang dapat menambahkan catatan medis ke rekam medis Anda.
-              Izin disimpan permanen di Blockchain dan dapat dicabut kapan saja.
+              Izin disimpan secara aman dan dapat dicabut kapan saja.
             </p>
           </div>
         </div>
@@ -285,7 +285,7 @@ export default function DaftarDokter() {
                       }`}
                     >
                       {isProcessing
-                        ? "Memproses di Blockchain..."
+                        ? "Memproses, mohon tunggu..."
                         : hasConsent
                         ? "Cabut Izin"
                         : "Beri Izin"}

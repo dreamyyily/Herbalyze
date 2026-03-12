@@ -78,7 +78,7 @@ export default function AdminDashboard() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Gagal update database");
 
-      showToast('success', 'Berhasil', `${nama} telah disahkan di Blockchain & Database.`);
+      showToast('success', 'Berhasil', `${nama} telah resmi disahkan sebagai dokter terverifikasi.`);
       fetchPendingDoctors();
     } catch (error) {
       const msg = error?.data?.message || error?.reason || error.message;
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-50/40 backdrop-blur-sm p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center border border-gray-100 animate-fade-in">
               <h3 className="text-xl font-bold mb-4 text-gray-800">Sahkan Dokter?</h3>
-              <p className="text-sm text-gray-500 mb-8 leading-relaxed">Anda akan mengesahkan <span className="font-bold">{selectedDoctor.nama}</span>. MetaMask akan terbuka untuk transaksi blockchain.</p>
+              <p className="text-sm text-gray-500 mb-8 leading-relaxed">Anda akan mengesahkan <span className="font-bold">{selectedDoctor.nama}</span> sebagai dokter terverifikasi. Proses ini memerlukan konfirmasi dari dompet digital Anda.</p>
               <div className="flex gap-3">
                 <button onClick={() => setIsApproveModalOpen(false)} className="flex-1 py-3 text-gray-400 font-semibold">Batal</button>
                 <button onClick={executeApprove} className="flex-1 py-3 rounded-xl text-white bg-primary-40 font-bold">Lanjutkan</button>

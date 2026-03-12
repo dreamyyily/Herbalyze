@@ -277,7 +277,7 @@ export default function DataPersonal() {
               {formData.role === 'Doctor' && (
                 <div className="p-6 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-5">
                   <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl">🩺</div>
-                  <div><h4 className="text-xl font-bold text-blue-800">Dokter Terverifikasi</h4><p className="text-blue-600 mt-1">Akun Anda memiliki wewenang penuh untuk mencatat rekam medis pasien ke dalam jaringan Blockchain.</p></div>
+                  <div><h4 className="text-xl font-bold text-blue-800">Dokter Terverifikasi</h4><p className="text-blue-600 mt-1">Akun Anda memiliki wewenang penuh untuk mencatat rekam medis pasien secara aman dan terenkripsi.</p></div>
                 </div>
               )}
               

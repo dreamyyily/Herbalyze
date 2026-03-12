@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { loadProfile } from "../../utils/storage";
 import MainLayout from "../../layouts/MainLayout";
 import SelectField from "../../components/SelectField";
 import MultiSelectField from "../../components/MultiSelectField";
@@ -34,13 +33,31 @@ export default function Home() {
     fetchDiagnoses();
     fetchSymptoms();
 
-    const profile = loadProfile();
-    const isProfileIncomplete =
-      !profile || !profile.nik || !profile.nama || !profile.tanggalLahir || !profile.alergiHerbal?.length;
+    const checkProfileStatus = async () => {
+      const userWallet = localStorage.getItem('user_wallet');
+      if (!userWallet) {
+        setShowProfileWarning(true); // If no wallet, profile is incomplete
+        return;
+      }
 
-    if (isProfileIncomplete) {
-      setShowProfileWarning(true);
-    }
+      try {
+        const res = await fetch(`http://localhost:8000/api/profile/${userWallet}`);
+        if (!res.ok) {
+          // If profile not found or other error, treat as incomplete
+          setShowProfileWarning(true);
+          return;
+        }
+        const profile = await res.json();
+        // ✅ Field dari backend: name, tanggal_lahir, alergi_herbal
+        const isProfileIncomplete =
+          !profile || !profile.nik || !profile.name || !profile.tanggal_lahir ||
+          !profile.alergi_herbal || profile.alergi_herbal.length === 0;
+        setShowProfileWarning(isProfileIncomplete);
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+        setShowProfileWarning(true); // On error, assume incomplete
+      }
+    };
 
     if (location.state?.profileUpdated) {
       setShowProfileWarning(false); 
@@ -49,6 +66,10 @@ export default function Home() {
       window.history.replaceState({}, document.title);
       
       setTimeout(() => setShowSuccessToast(false), 4000); 
+      // After update, re-check profile status to ensure it's truly complete
+      checkProfileStatus();
+    } else {
+      checkProfileStatus();
     }
   }, [location]);
 
