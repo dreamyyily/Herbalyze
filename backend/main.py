@@ -1050,3 +1050,22 @@ def approve_draft(draft_id: int, tx_hash: str, db: Session = Depends(get_db)):
         "tx_hash": tx_hash,
         "action": "APPROVED"
     }
+    
+# HAPUS AKUN
+class DeleteAccountRequest(BaseModel):
+    wallet_address: str
+
+@app.delete("/api/account/delete")
+def delete_account(req: DeleteAccountRequest, db: Session = Depends(get_db)):
+    wallet = req.wallet_address.lower()
+    user = db.query(User).filter(func.lower(User.wallet_address) == wallet).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Akun tidak ditemukan")
+    
+    db.execute(text("DELETE FROM search_history WHERE wallet_address = :wallet"), {"wallet": wallet})
+    
+    db.delete(user)
+    db.commit()
+    
+    return {"message": "Akun berhasil dihapus"}

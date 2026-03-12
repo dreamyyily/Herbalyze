@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import Avatar from "./Avatar";
+import { LogOut, Trash2, User } from "lucide-react";
 
 const API = "http://localhost:8000";
 
@@ -31,12 +32,45 @@ export default function Navbar() {
   const userWallet = (localStorage.getItem('user_wallet') || '').toLowerCase();
   const isPatientMenuVisible = role === 'Patient' || role === 'Pending_Doctor' || role === 'Rejected_Doctor';
 
-  // ── Badge notifikasi draft pending (untuk PASIEN & DOKTER: menu Catatan Dokter) ──
   const [draftCount, setDraftCount] = useState(0);
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+const [isDeleting, setIsDeleting] = useState(false);
+const [deleteConfirm, setDeleteConfirm] = useState("");
+
+const handleLogout = () => {
+  localStorage.removeItem('user_wallet');
+  localStorage.removeItem('user_profile');
+  localStorage.removeItem('admin_metamask_verified');
+  sessionStorage.removeItem('dismiss_pending_banner');
+  window.location.href = '/';
+};
+
+const handleDeleteAccount = async () => {
+  const wallet = localStorage.getItem("user_wallet");
+  if (!wallet) return;
+  setIsDeleting(true);
+  try {
+    const res = await fetch(`${API}/api/account/delete`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet_address: wallet }),
+    });
+    if (!res.ok) throw new Error("Gagal menghapus akun");
+    localStorage.removeItem('user_wallet');
+    localStorage.removeItem('user_profile');
+    localStorage.removeItem('admin_metamask_verified');
+    sessionStorage.removeItem('dismiss_pending_banner');
+    window.location.href = '/';
+  } catch (err) {
+    alert("Gagal menghapus akun: " + err.message);
+  } finally {
+    setIsDeleting(false);
+  }
+};
+
   const checkPendingDrafts = useCallback(async () => {
-    // Berlaku untuk Pasien DAN Dokter (keduanya punya Catatan Dokter)
-    // Hanya skip untuk Admin
     if (!userWallet || role === 'Admin') return;
     try {
       const res = await fetch(`${API}/api/medical-record/draft/pending/${userWallet}`);
@@ -44,18 +78,18 @@ export default function Navbar() {
       const data = await res.json();
       setDraftCount(data.count || 0);
     } catch {
-      // Silent fail — tidak perlu tampilkan error di navbar
+      // Silent fail 
     }
   }, [userWallet, role]);
 
   useEffect(() => {
     checkPendingDrafts();
-    // Polling setiap 30 detik
     const interval = setInterval(checkPendingDrafts, 30000);
     return () => clearInterval(interval);
   }, [checkPendingDrafts]);
 
   return (
+  <>
     <nav className="flex justify-between items-center py-6 px-12 border-b border-light-40 bg-white shadow-sm">
       <div className="flex items-center gap-4">
         <div className="text-3xl font-bold text-primary-40">Herbalyze</div>
@@ -67,7 +101,6 @@ export default function Navbar() {
       </div>
 
       <div className="flex gap-10">
-        {/* Pasien / Pending / Rejected */}
         {isPatientMenuVisible && (
           <>
             <NavLink to="/home" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
@@ -79,7 +112,6 @@ export default function Navbar() {
             <NavLink to="/daftar-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Daftar Dokter
             </NavLink>
-            {/* Catatan Dokter + badge notifikasi */}
             <NavLink to="/catatan-dokter" className={({ isActive }) => `relative text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Catatan Dokter
               {draftCount > 0 && (
@@ -94,7 +126,6 @@ export default function Navbar() {
           </>
         )}
 
-        {/* Dokter: Home, Data Personal, Daftar Dokter, Catatan Dokter + badge, Rekam Medis, Riwayat */}
         {role === 'Doctor' && (
           <>
             <NavLink to="/home" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
@@ -106,7 +137,6 @@ export default function Navbar() {
             <NavLink to="/daftar-dokter" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Daftar Dokter
             </NavLink>
-            {/* Catatan Dokter + badge notifikasi untuk dokter */}
             <NavLink to="/catatan-dokter" className={({ isActive }) => `relative text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`}>
               Catatan Dokter
               {draftCount > 0 && (
@@ -124,7 +154,6 @@ export default function Navbar() {
           </>
         )}
 
-        {/* Admin */}
         {role === 'Admin' && (
           <NavLink to="/admin" className={({ isActive }) => `text-regular-16 ${isActive ? "text-bold-16 text-purple-600" : "text-dark-30"} hover:text-purple-600 transition`}>
             Dashboard Admin
@@ -132,8 +161,12 @@ export default function Navbar() {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
-        <NavLink to="/data-personal" className="group flex items-center gap-3 hover:opacity-90 transition">
+      {/* Avatar + Dropdown — ganti bagian ini */}
+      <div className="relative">
+        <button
+          onClick={() => setIsDropdownOpen(prev => !prev)}
+          className="group flex items-center gap-3 hover:opacity-90 transition"
+        >
           <div className="relative">
             <Avatar name={name} fotoProfil={foto_profil} size="sm" className="border-2 border-primary-30 shadow-sm group-hover:border-primary-50 transition" />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full"></span>
@@ -143,21 +176,94 @@ export default function Navbar() {
               {name.split(" ")[0]}
             </span>
           )}
-        </NavLink>
-
-        <button
-          onClick={() => {
-            localStorage.removeItem('user_wallet');
-            localStorage.removeItem('user_profile');
-            localStorage.removeItem('admin_metamask_verified');
-            sessionStorage.removeItem('dismiss_pending_banner');
-            window.location.href = '/';
-          }}
-          className="text-sm font-medium text-danger-30 border border-light-40 hover:bg-danger-10 hover:border-danger-30 px-5 py-2 rounded-full transition-all"
-        >
-          Logout
         </button>
+
+        {isDropdownOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)} />
+            <div className="absolute right-0 mt-3 w-52 bg-white rounded-2xl shadow-xl border border-light-40 z-20 overflow-hidden">
+              <div className="px-4 py-3 border-b border-light-40">
+                <p className="text-sm font-bold text-dark-50 truncate">{name || "Pengguna"}</p>
+                <p className="text-xs text-dark-30">{role}</p>
+              </div>
+              <NavLink
+                to="/data-personal"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 text-sm text-dark-40 hover:bg-light-20 transition"
+              >
+                <User size={15} /> Data Personal
+              </NavLink>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-dark-40 hover:bg-light-20 transition"
+              >
+                <LogOut size={15} /> Logout
+              </button>
+              <button
+                onClick={() => { setIsDropdownOpen(false); setIsDeleteModalOpen(true); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-danger-30 hover:bg-red-50 transition border-t border-light-40"
+              >
+                <Trash2 size={15} /> Hapus Akun
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </nav>
-  );
+
+    {/* Modal Hapus Akun — di luar <nav> */}
+    {isDeleteModalOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-danger-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
+
+          <h3 className="text-xl font-extrabold text-dark-50 mb-2">Hapus Akun Permanen?</h3>
+          <p className="text-dark-30 text-sm leading-relaxed mb-4">
+            Seluruh data profil Anda akan dihapus secara permanen dan tidak dapat dipulihkan.
+          </p>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-left">
+            <p className="text-yellow-800 text-xs font-bold mb-1">⚠️ Perhatian</p>
+            <p className="text-yellow-700 text-xs leading-relaxed">
+              Rekam medis yang sudah tersimpan di blockchain bersifat <strong>permanen</strong> dan tidak dapat dihapus oleh siapapun, termasuk oleh sistem kami.
+            </p>
+          </div>
+
+          <p className="text-dark-40 text-sm mb-2">Ketik <strong>HAPUS</strong> untuk mengkonfirmasi</p>
+          <input
+            type="text"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder="Ketik HAPUS"
+            className="w-full border border-light-40 rounded-xl px-4 py-3 text-sm text-center focus:outline-none focus:border-danger-30 focus:ring-2 focus:ring-red-100 mb-6"
+          />
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setIsDeleteModalOpen(false); setDeleteConfirm(""); }}
+              className="flex-1 px-6 py-3 rounded-xl bg-light-20 hover:bg-light-40 text-dark-50 font-bold transition"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleteConfirm !== "HAPUS" || isDeleting}
+              className={`flex-1 px-6 py-3 rounded-xl font-bold text-white transition ${
+                deleteConfirm === "HAPUS" && !isDeleting
+                  ? "bg-danger-30 hover:bg-red-600"
+                  : "bg-light-50 cursor-not-allowed"
+              }`}
+            >
+              {isDeleting ? "Menghapus..." : "Hapus Akun"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }
