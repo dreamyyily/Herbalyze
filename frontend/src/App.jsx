@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Home from "./pages/patient/Home.jsx";
 import DataPersonal from "./pages/patient/DataPersonal.jsx";
 import CatatanDokter from "./pages/patient/CatatanDokter.jsx";
-import DaftarDokter from "./pages/patient/DaftarDokter.jsx";
+import DaftarDokter from "./pages/patient/PerizinanDokter.jsx";
 import RekamMedis from "./pages/doctor/RekamMedis.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
@@ -135,7 +135,7 @@ const AppContent = () => {
                 <ProtectedRoute><DataPersonal /></ProtectedRoute>
             } />
 
-            <Route path="/daftar-dokter" element={
+            <Route path="/perizinan-dokter" element={
                 <PatientDoctorRoute><DaftarDokter /></PatientDoctorRoute>
             } />
 

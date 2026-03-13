@@ -1,5 +1,6 @@
 import Navbar from "../components/Navbar";
 import { useState, useEffect } from "react";
+import { Clock, X } from "lucide-react";
 
 export default function MainLayout({ children }) {
   const [showPendingBanner, setShowPendingBanner] = useState(false);
@@ -22,16 +23,25 @@ export default function MainLayout({ children }) {
       <Navbar />
 
       {showPendingBanner && (
-        <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3 flex items-center justify-center">
-          <div className="flex items-center gap-3 max-w-4xl w-full">
-            <span className="text-yellow-500 text-lg flex-shrink-0">⏳</span>
-            <p className="text-yellow-800 text-sm font-medium flex-1">
+        <div className="bg-amber-50 border-b-2 border-amber-200 shadow-sm">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-4">
+            
+            <div className="flex-shrink-0 w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+              <Clock size={15} className="text-amber-600" />
+            </div>
+
+            <p className="text-amber-800 text-sm flex-1">
               <span className="font-bold">Pengajuan Dokter Sedang Diproses — </span>
               Dokumen STR Anda sedang dalam antrean verifikasi Admin. Anda akan mendapat akses dokter setelah disetujui.
             </p>
-            <button onClick={handleDismiss} className="text-yellow-500 hover:text-yellow-700 font-bold text-lg flex-shrink-0 transition">
-              ✕
+
+            <button
+              onClick={handleDismiss}
+              className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-100 hover:bg-amber-200 flex items-center justify-center transition"
+            >
+              <X size={13} className="text-amber-600" />
             </button>
+
           </div>
         </div>
       )}

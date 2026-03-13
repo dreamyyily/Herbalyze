@@ -7,6 +7,7 @@ import { formatTanggal } from "../../utils/formatTanggal";
 import { validateRequired } from "../../utils/validateForm";
 import MultiSelectField from "../../components/MultiSelectField";
 import Avatar from "../../components/Avatar";
+import { Pencil } from "lucide-react";
 
 const genderOptions = ["Laki-laki", "Perempuan"];
 
@@ -31,6 +32,13 @@ export default function DataPersonal() {
   });
 
   const toastTimer = useRef(null);
+
+  const fieldRefs = {
+    nik: useRef(null),
+    nama: useRef(null),
+    tanggalLahir: useRef(null),
+    alergiHerbal: useRef(null),
+  };
 
   const [doctorRequest, setDoctorRequest] = useState({ nomorSTR: "", institusi: "", dokumen: null });
   const [formData, setFormData] = useState({ photo: null, nik: "", nama: "", tempatLahir: "", tanggalLahir: "", email: "", nomorHp: "", jenisKelamin: "", alergiHerbal: [] });
@@ -97,16 +105,31 @@ export default function DataPersonal() {
   };
 
   const isPersonalDataComplete = (showError = false) => {
-    const newErrors = validateRequired(formData, requiredFields);
-    if (!formData.alergiHerbal || formData.alergiHerbal.length === 0) {
-      newErrors.alergiHerbal = "Pilih minimal satu (atau pilih 'Tidak Ada')";
+  const newErrors = validateRequired(formData, requiredFields);
+  if (!formData.alergiHerbal || formData.alergiHerbal.length === 0) {
+    newErrors.alergiHerbal = "Pilih minimal satu (atau pilih 'Tidak Ada')";
+  }
+  if (formData.nik && formData.nik.length !== 16) {
+    newErrors.nik = "NIK harus tepat 16 digit angka";
+  }
+  if (Object.keys(newErrors).length > 0) {
+    if (showError) {
+      setErrors(newErrors);
+      setTimeout(() => {
+        const firstErrorField = Object.keys(newErrors)[0];
+        const ref = fieldRefs[firstErrorField];
+        if (ref?.current) {
+          ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          const el = document.querySelector(`[name="${firstErrorField}"]`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
     }
-    if (Object.keys(newErrors).length > 0) {
-      if (showError) setErrors(newErrors);
-      return false;
-    }
-    return true;
-  };
+    return false;
+  }
+  return true;
+};
 
   const handleOpenDoctorModal = () => {
     if (!isPersonalDataComplete(true)) { setIsIncompleteModalOpen(true); return; }
@@ -186,8 +209,18 @@ export default function DataPersonal() {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target; setFormData((prev) => ({ ...prev, [name]: value })); setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
+  const { name, value } = e.target;
+
+  if (name === "nik") {
+    if (!/^\d*$/.test(value)) return; 
+    if (value.length > 16) return;   
+  }
+  if (name === "nomorHp") {
+    if (!/^\d*$/.test(value)) return; 
+  }
+  setFormData((prev) => ({ ...prev, [name]: value }));
+  setErrors((prev) => ({ ...prev, [name]: "" }));
+};
 
   const handleSelectChange = (name, value) => {
     if (name === "alergiHerbal" && value.includes("Tidak Ada")) value = ["Tidak Ada"];
@@ -255,7 +288,9 @@ export default function DataPersonal() {
       <MainLayout>
         <div className="max-w-5xl mx-auto px-4 mt-16 pb-20 relative">
           <div className="bg-white rounded-3xl shadow-2xl p-12 border border-light-40 relative">
-            <button onClick={() => setIsEdit(true)} className="absolute top-10 right-10 bg-primary-10 text-primary-50 px-6 py-2.5 rounded-full font-bold hover:bg-primary-20 transition">✎ Edit Profil</button>
+            <button onClick={() => setIsEdit(true)} className="absolute top-10 right-10 bg-primary-10 text-primary-50 px-6 py-2.5 rounded-full font-bold hover:bg-primary-20 transition flex items-center gap-2">
+              <Pencil size={14} /> Edit Profil
+            </button>
             <div className="flex items-center gap-8 mb-16">
               <Avatar name={formData.nama} fotoProfil={photoPreview || formData.photo} size="xl" className="border-4 border-primary-40 shadow-md" />
               <h1 className="text-3xl font-extrabold text-dark-50">{formData.nama || "Nama User"}</h1>
@@ -407,7 +442,7 @@ export default function DataPersonal() {
       <div className="max-w-5xl mx-auto px-4 mt-16 pb-20 relative">
         <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-light-40 relative z-10">
           <div className="flex justify-between items-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-dark-50">Edit Profil Personal</h2>
+            <h2 className="text-2xl md:text-3xl font-extrabold text-dark-50">Edit Data Personal</h2>
             <button onClick={handleBatal} className="text-gray-400 hover:text-dark-50 transition font-medium">Batal Edit</button>
           </div>
 
@@ -435,17 +470,26 @@ export default function DataPersonal() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
             <div className="md:col-span-2">
-              <InputField label="NIK (Nomor Induk Kependudukan)" name="nik" placeholder="Masukkan 16 digit NIK" value={formData.nik} onChange={handleInputChange} required error={errors.nik} />
+              <div ref={fieldRefs.nik}>
+                <InputField label="NIK (Nomor Induk Kependudukan)" name="nik" placeholder="Masukkan 16 digit NIK" value={formData.nik} onChange={handleInputChange} required error={errors.nik} />
+                <p className={`text-xs mt-1 text-right ${formData.nik.length === 16 ? "text-green-500" : "text-dark-30"}`}>
+                  {formData.nik.length} / 16 digit
+                </p>
+              </div>
             </div>
             <div className="md:col-span-2">
               <InputField label="Nama Lengkap Sesuai ID (KTP atau Paspor)" name="nama" placeholder="Tuliskan nama lengkap..." value={formData.nama} onChange={handleInputChange} required error={errors.nama} />
             </div>
             <InputField label="Tempat Lahir" name="tempatLahir" placeholder="Contoh: Jakarta" value={formData.tempatLahir} onChange={handleInputChange} />
-            <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" value={formData.tanggalLahir} onChange={handleInputChange} max={today} required error={errors.tanggalLahir} />
+            <div ref={fieldRefs.tanggalLahir}>
+              <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" value={formData.tanggalLahir} onChange={handleInputChange} max={today} required error={errors.tanggalLahir} />
+            </div>
             <InputField label="Email Terdaftar" name="email" type="email" placeholder="mail@example.com" value={formData.email} disabled required error={errors.email} />
             <InputField label="Nomor Handphone" name="nomorHp" placeholder="Contoh: 08123456789" value={formData.nomorHp} onChange={handleInputChange} />
             <SelectField label="Jenis Kelamin" options={genderOptions} value={formData.jenisKelamin} onChange={(value) => handleSelectChange("jenisKelamin", value)} />
-            <MultiSelectField label="Alergi Herbal (Pilih lebih dari satu jika ada)" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
+            <div ref={fieldRefs.alergiHerbal}>
+                <MultiSelectField label="Alergi Herbal (Pilih lebih dari satu jika ada)" options={herbsOptions} value={formData.alergiHerbal} onChange={(value) => handleSelectChange("alergiHerbal", value)} required error={errors.alergiHerbal} />
+            </div>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-4 mt-16 pt-10 border-t border-gray-100">
@@ -457,12 +501,9 @@ export default function DataPersonal() {
             </button>
             <button 
               onClick={handleSimpan} 
-              className="w-full sm:w-auto bg-primary-50 text-white px-10 py-4 rounded-xl font-bold hover:bg-primary-60 transition-all shadow-lg shadow-primary-50/30 active:scale-95 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto bg-primary-50 text-white px-10 py-4 rounded-xl font-bold hover:bg-primary-60 transition-all shadow-lg shadow-primary-50/30 active:scale-95 flex items-center justify-center"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-              Simpan Perubahan Profil
+              Simpan
             </button>
           </div>
 

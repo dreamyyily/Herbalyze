@@ -472,7 +472,7 @@ export default function RekamMedis() {
                     </div>
                   ) : (
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-700">
-                      ⚠️ Belum ada pasien yang memberikan izin kepada Anda. Minta pasien untuk membuka halaman <strong>Daftar Dokter</strong> dan klik "Beri Izin".
+                      ⚠️ Belum ada pasien yang memberikan izin kepada Anda. Minta pasien untuk membuka halaman <strong>Perizinan Dokter</strong> dan klik "Beri Izin".
                     </div>
                   )}
 
@@ -616,7 +616,7 @@ export default function RekamMedis() {
                     <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                       <p className="text-4xl mb-3">🙋</p>
                       <p className="text-gray-500 font-medium">Belum ada pasien yang memberi izin</p>
-                      <p className="text-gray-400 text-sm mt-1">Minta pasien untuk membuka halaman <strong>Daftar Dokter</strong> dan klik "Beri Izin"</p>
+                      <p className="text-gray-400 text-sm mt-1">Minta pasien untuk membuka halaman <strong>Perizinan Dokter</strong> dan klik "Beri Izin"</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
