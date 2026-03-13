@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import Avatar from "./Avatar";
-import { LogOut, Trash2, User } from "lucide-react";
+import { LogOut, Trash2, TriangleAlert } from "lucide-react";
 
 const API = "http://localhost:8000";
 
@@ -24,6 +24,7 @@ export default function Navbar() {
       .then(data => {
         setProfileData({ name: data.name || null, role: data.role || 'Patient', foto_profil: data.foto_profil || null });
         localStorage.setItem('user_profile', JSON.stringify({ name: data.name, role: data.role, foto_profil: data.foto_profil || null }));
+        window.dispatchEvent(new Event('profile-updated'));
       })
       .catch(err => console.error("Navbar: gagal load profil", err));
   }, []);
@@ -33,11 +34,10 @@ export default function Navbar() {
   const isPatientMenuVisible = role === 'Patient' || role === 'Pending_Doctor' || role === 'Rejected_Doctor';
 
   const [draftCount, setDraftCount] = useState(0);
-
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-const [isDeleting, setIsDeleting] = useState(false);
-const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
 const handleLogout = () => {
   localStorage.removeItem('user_wallet');
@@ -161,7 +161,7 @@ const handleDeleteAccount = async () => {
         )}
       </div>
 
-      {/* Avatar + Dropdown — ganti bagian ini */}
+      {/* Avatar + Dropdown */}
       <div className="relative">
         <button
           onClick={() => setIsDropdownOpen(prev => !prev)}
@@ -181,44 +181,45 @@ const handleDeleteAccount = async () => {
         {isDropdownOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)} />
-            <div className="absolute right-0 mt-3 w-52 bg-white rounded-2xl shadow-xl border border-light-40 z-20 overflow-hidden">
-              <div className="px-4 py-3 border-b border-light-40">
-                <p className="text-sm font-bold text-dark-50 truncate">{name || "Pengguna"}</p>
-                <p className="text-xs text-dark-30">{role}</p>
-              </div>
+            <div className="absolute right-0 mt-3 w-60 bg-white rounded-2xl shadow-xl border border-light-40 z-20 overflow-hidden">
               <NavLink
-                to="/data-personal"
-                onClick={() => setIsDropdownOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 text-sm text-dark-40 hover:bg-light-20 transition"
-              >
-                <User size={15} /> Data Personal
-              </NavLink>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-dark-40 hover:bg-light-20 transition"
-              >
-                <LogOut size={15} /> Logout
-              </button>
-              <button
-                onClick={() => { setIsDropdownOpen(false); setIsDeleteModalOpen(true); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-danger-30 hover:bg-red-50 transition border-t border-light-40"
-              >
-                <Trash2 size={15} /> Hapus Akun
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </nav>
+                  to="/data-personal"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-light-20 transition"
+                >
+                  <Avatar name={name} fotoProfil={foto_profil} size="xs" className="border border-light-40 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-dark-50 truncate">{name || "Pengguna"}</p>
+                    <p className="text-xs text-dark-30">Lihat profil →</p>
+                  </div>
+                </NavLink>
 
-    {/* Modal Hapus Akun — di luar <nav> */}
+                <div className="border-t border-light-40 grid grid-cols-2">
+                  <button
+                    onClick={() => { setIsDropdownOpen(false); setIsDeleteModalOpen(true); }}
+                    className="flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-medium text-danger-30 hover:bg-red-50 transition border-r border-light-40"
+                  >
+                    <Trash2 size={13} /> Hapus Akun
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-medium text-dark-40 hover:bg-light-20 transition"
+                  >
+                    <LogOut size={13} /> Logout
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </nav>
+
+    {/* Modal Hapus Akun */}
     {isDeleteModalOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 text-center">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-danger-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <Trash2 size={28} className="text-danger-30" />
           </div>
 
           <h3 className="text-xl font-extrabold text-dark-50 mb-2">Hapus Akun Permanen?</h3>
@@ -227,7 +228,7 @@ const handleDeleteAccount = async () => {
           </p>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-left">
-            <p className="text-yellow-800 text-xs font-bold mb-1">⚠️ Perhatian</p>
+            <p className="text-yellow-800 text-xs font-bold mb-1 flex items-center gap-1"><TriangleAlert size={12} /> Perhatian</p>
             <p className="text-yellow-700 text-xs leading-relaxed">
               Rekam medis yang sudah tersimpan di blockchain bersifat <strong>permanen</strong> dan tidak dapat dihapus oleh siapapun, termasuk oleh sistem kami.
             </p>

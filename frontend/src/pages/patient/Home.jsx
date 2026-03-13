@@ -5,6 +5,7 @@ import SelectField from "../../components/SelectField";
 import MultiSelectField from "../../components/MultiSelectField";
 import HeroSection from "../../components/HeroSection";
 import ResultSection from "../../components/ResultSection";
+import { AlertCircle } from "lucide-react";
 
 export default function Home() {
   const [diagnosisOptions, setDiagnosisOptions] = useState([]);
@@ -218,7 +219,13 @@ export default function Home() {
                   <span className="w-8 h-[3px] bg-primary-40 rounded-full"></span><h3 className="text-primary-60 font-bold text-sm uppercase tracking-widest">Profil Keamanan</h3>
                 </div>
                 <MultiSelectField label="Kondisi Khusus" required options={specialConditionOptions} value={selectedCondition} onChange={handleConditionChange} />
+                <div>
                 <SelectField label="Konsumsi Obat Kimia" required options={chemicalDrugOptions} value={selectedDrug} onChange={(c) => setSelectedDrug([c])} closeOnSelect={true} />
+                <p className="text-xs text-dark-30 flex items-start gap-1.5 -mt-6">
+                  <AlertCircle size={12} className="flex-shrink-0 mt-0.5 text-primary-30" />
+                  Beri tahu kami jika Anda sedang mengonsumsi obat yang diresepkan dokter.
+                </p>
+              </div>
               </div>
             </div>
 

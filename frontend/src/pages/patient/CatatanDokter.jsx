@@ -5,6 +5,7 @@ import CryptoJS from "crypto-js";
 import { ethers } from "ethers";
 import { getReadOnlyContract, getSignerContract } from "../../utils/web3";
 import Avatar from "../../components/Avatar";
+import { Clock, ClipboardList, RefreshCw, CheckCircle2, AlertTriangle, X, XCircle, CheckCircle, Stethoscope, Search, Sparkles, Link, ShieldCheck } from "lucide-react";
 
 const API = "http://localhost:8000";
 
@@ -17,10 +18,10 @@ function Toast({ toasts, removeToast }) {
           key={t.id}
           className={`pointer-events-auto flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-sm max-w-sm w-full
             transform transition-all duration-500 animate-slide-in
-            ${t.type === "success" ? "bg-white border-green-200 text-green-800" :
-              t.type === "error"   ? "bg-white border-red-200 text-red-800" :
-              t.type === "warning" ? "bg-white border-orange-200 text-orange-800" :
-                                     "bg-white border-blue-200 text-blue-800"}`}
+            ${t.type === "success" ? <CheckCircle size={20} className="text-green-500 flex-shrink-0 mt-0.5" /> : 
+              t.type === "error"   ? <XCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" /> : 
+              t.type === "warning" ? <AlertTriangle size={20} className="text-orange-400 flex-shrink-0 mt-0.5" /> : 
+                                      <ShieldCheck size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />}`}
         >
           <span className="text-2xl mt-0.5 flex-shrink-0">
             {t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}
@@ -408,13 +409,6 @@ export default function CatatanDokter() {
                       <p className="text-xl font-bold text-gray-800">{selectedRecord.dokterName || "Dokter Anonim"}</p>
                     </div>
                   </div>
-                  <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl flex items-center gap-3">
-                    <span className="text-blue-500 text-xl">⛓️</span>
-                    <div>
-                      <p className="text-xs font-bold text-blue-800 uppercase tracking-wide">Blockchain Verified</p>
-                      <p className="text-[10px] font-mono text-blue-600/80 mt-0.5 break-all max-w-[200px]">By: {selectedRecord.uploader?.substring(0,12)}...</p>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
@@ -452,7 +446,7 @@ export default function CatatanDokter() {
                     onClick={() => handleCariRekomendasiAI(selectedRecord)}
                     className="bg-gradient-to-r from-primary-40 to-primary-60 text-white font-bold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-transform active:scale-95 flex items-center gap-2"
                   >
-                    ✨ Cari Rekomendasi Herbal dengan AI
+                    <Sparkles size={16} /> Cari Rekomendasi Herbal dengan AI
                   </button>
                 </div>
               </div>
@@ -464,7 +458,9 @@ export default function CatatanDokter() {
             <div className="animate-fade-in p-8 md:p-12">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-extrabold text-dark-50">⏳ Rekam Medis Menunggu Verifikasi</h2>
+                  <h2 className="text-2xl font-extrabold text-dark-50 flex items-center gap-2">
+                    <Clock size={22} className="text-orange-400" /> Rekam Medis Menunggu Verifikasi
+                  </h2>
                   <p className="text-sm text-orange-500 mt-1">Periksa dengan teliti sebelum menyetujui</p>
                 </div>
                 <button onClick={() => setSelectedDraft(null)} className="bg-white border border-gray-200 text-gray-600 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 transition shadow-sm flex items-center gap-2">
@@ -474,7 +470,7 @@ export default function CatatanDokter() {
 
               <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 mb-6">
                 <div className="flex items-start gap-3">
-                  <span className="text-2xl">⚠️</span>
+                  <AlertTriangle size={22} className="text-orange-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-orange-800 mb-1">Perhatian: Rekam medis ini perlu persetujuan Anda</p>
                     <p className="text-sm text-orange-700">
@@ -528,14 +524,14 @@ export default function CatatanDokter() {
                   disabled={isProcessingDraft}
                   className="px-8 py-4 rounded-xl font-bold text-base border-2 transition-all transform active:scale-95 bg-white text-red-500 border-red-300 hover:bg-red-50 hover:border-red-400 disabled:opacity-40"
                 >
-                  ❌ Tolak
+                  <XCircle size={16} /> Tolak
                 </button>
                 <button
                   onClick={() => handleApproveDraft(selectedDraft)}
                   disabled={isProcessingDraft}
                   className="px-8 py-4 rounded-xl font-bold text-base shadow-lg transition-all transform active:scale-95 bg-primary-40 hover:bg-primary-50 text-white disabled:opacity-40"
                 >
-                  ✅ Saya Setujui Rekam Medis Ini
+                  <CheckCircle size={16} /> Saya Setujui Rekam Medis Ini
                 </button>
               </div>
             </div>
@@ -554,7 +550,7 @@ export default function CatatanDokter() {
                       : "border-transparent text-gray-400 hover:text-gray-600"
                   }`}
                 >
-                  ⏳ Menunggu Verifikasi
+                  <Clock size={15} /> Menunggu Verifikasi
                   {pendingDrafts.length > 0 && (
                     <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
                       {pendingDrafts.length}
@@ -569,7 +565,7 @@ export default function CatatanDokter() {
                       : "border-transparent text-gray-400 hover:text-gray-600"
                   }`}
                 >
-                  📋 Riwayat Rekam Medis
+                  <ClipboardList size={15} /> Riwayat Rekam Medis
                   {records.length > 0 && (
                     <span className="ml-1 bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
                       {records.length}
@@ -589,7 +585,7 @@ export default function CatatanDokter() {
                       className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 p-3 rounded-xl transition shadow-sm"
                       title="Refresh"
                     >
-                      {isFetchingDrafts ? "⏳" : "🔄"}
+                      {isFetchingDrafts ? <Clock size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                     </button>
                   </div>
 
@@ -600,7 +596,9 @@ export default function CatatanDokter() {
                     </div>
                   ) : pendingDrafts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 text-3xl">✅</div>
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+                        <CheckCircle2 size={28} className="text-green-400" />
+                      </div>
                       <p className="text-gray-500 font-bold text-lg">Tidak ada rekam medis yang perlu diverifikasi</p>
                       <p className="text-gray-400 text-sm mt-1 text-center">Semua rekam medis sudah diproses</p>
                     </div>
@@ -614,7 +612,9 @@ export default function CatatanDokter() {
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-full bg-white border border-orange-200 flex items-center justify-center text-xl shadow-sm">🩺</div>
+                              <div className="w-12 h-12 rounded-full bg-white border border-orange-200 flex items-center justify-center shadow-sm">
+                                <Stethoscope size={20} className="text-orange-400" />
+                              </div>
                               <div>
                                 <p className="font-bold text-gray-800">{draft.doctor_name || "Dokter"}</p>
                                 <p className="text-xs text-gray-500">{draft.doctor_instansi || "-"}</p>
@@ -622,7 +622,7 @@ export default function CatatanDokter() {
                               </div>
                             </div>
                             <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full border border-orange-200 animate-pulse">
-                              ⏳ Perlu Verifikasi
+                              <Clock size={12} /> Perlu Verifikasi
                             </span>
                           </div>
                           <div className="mt-4 bg-white rounded-xl p-4 border border-orange-100">
@@ -635,13 +635,13 @@ export default function CatatanDokter() {
                               disabled={isProcessingDraft}
                               className="px-5 py-2 rounded-xl text-sm font-semibold text-red-500 border border-red-200 hover:bg-red-50 transition"
                             >
-                              ❌ Tolak
+                              <XCircle size={14} /> Tolak
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); setSelectedDraft(draft); }}
                               className="px-5 py-2 rounded-xl text-sm font-semibold bg-primary-40 text-white hover:bg-primary-50 transition"
                             >
-                              🔍 Periksa Detail
+                              <Search size={14} /> Periksa Detail
                             </button>
                           </div>
                         </div>
@@ -675,7 +675,7 @@ export default function CatatanDokter() {
                         className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 p-3 rounded-xl transition shadow-sm"
                         title="Refresh Data"
                       >
-                        {isFetching ? "⏳" : "🔄"}
+                        {isFetching ? <Clock size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                       </button>
                     </div>
                   </div>
@@ -687,7 +687,9 @@ export default function CatatanDokter() {
                     </div>
                   ) : filteredRecords.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 text-3xl">📋</div>
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+                        <ClipboardList size={28} className="text-gray-300" />
+                      </div>
                       <p className="text-gray-500 font-bold text-lg">Belum ada catatan medis</p>
                       <p className="text-gray-400 text-sm mt-1 max-w-sm text-center">Rekam medis Anda akan muncul di sini setelah Anda menyetujui draft dari dokter.</p>
                     </div>
@@ -730,7 +732,7 @@ export default function CatatanDokter() {
                                     className="bg-gradient-to-r from-primary-40 to-primary-60 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-transform active:scale-95 text-xs whitespace-nowrap flex items-center gap-1.5"
                                     title="Cari Rekomendasi Herbal dengan AI SBERT"
                                   >
-                                    ✨ Cari Herbal
+                                    <Sparkles size={13} /> Cari Herbal
                                   </button>
                                 </div>
                               </td>
