@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 import os
 import traceback
 import re
+import time 
 
 from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory, MedicalRecordDraft
@@ -562,16 +563,20 @@ class HybridRequest(BaseModel):
     query_text: str
     kondisi: list[str]
     obat_kimia: list[str]
-
+    
 @app.post("/api/recommend_hybrid")
 async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
-    print(f"\n{'='*60}")
-    print(f"🚀 [HYBRID ENGINE] MEMULAI ANALISIS REKOMENDASI")
+    start_total = time.time() # ⏱️ Start timer total backend
+    print(f"\n{'='*70}")
+    print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI HYBRID")
     print(f"📥 Input Teks      : '{req.query_text}'")
+    print(f"{'='*70}")
     
     try:
+        # --- 1. PRE-PROCESSING DASAR ---
         query_clean = req.query_text.strip().lower()
         if not query_clean:
+            print("⚠️ [!] Input kosong, proses dihentikan.")
             raise HTTPException(status_code=400, detail="Teks keluhan kosong")
 
         condition_mapping = {
@@ -580,7 +585,9 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             "Anak di bawah lima tahun": "anak di bawah 5 tahun"
         }
         sel_cond = [condition_mapping.get(c, c) for c in req.kondisi if c != "Tidak ada"]
+        print(f"⚙️  [PRE-PROCESS] Kondisi pasien: {sel_cond if sel_cond else 'Normal'}")
 
+        # --- 2. HELPER FUNCTIONS (WAJIB ADA DI SINI AGAR TIDAK NAMEERROR) ---
         def get_safe_herbs(h_names, conditions):
             if not h_names or not conditions: return list(h_names)
             result_db = db.execute(text("""
@@ -617,145 +624,197 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                     VALUES (:wallet, :diag, :symp, :cond, :drug, :res, NOW())
                 """), {
                     "wallet": req.wallet_address.lower(),
-                    "diag": json.dumps([f"Hybrid: {req.query_text[:50]}..."]), 
+                    "diag": json.dumps([f"Analisis: {req.query_text[:50]}..."]), 
                     "symp": json.dumps([]),
                     "cond": json.dumps(req.kondisi),
                     "drug": json.dumps(req.obat_kimia),
                     "res": json.dumps(result_group)
                 })
                 db.commit()
-                print(f"   💾 Riwayat Hybrid berhasil disimpan.")
+                print(f"💾 [HISTORY] Riwayat disimpan untuk: {req.wallet_address}")
             except Exception as e:
                 db.rollback()
-                print(f"   ⚠️ Gagal simpan riwayat: {e}")
+                print(f"⚠️ [HISTORY] Gagal simpan riwayat: {e}")
 
-        # Pembersihan Teks (Stopwords) DILAKUKAN DI AWAL
-        stop_words = ["pasien", "mengeluhkan", "gejala", "diagnosis", "yang", "dan", "di", "ke", "dari", "ini", "itu", "nya", "ialah", "adalah", "terdapat", "alami", "mengidap", "penyakit", "mengalami", "juga", "seharusnya"]        
-        # Memecah input
-        raw_chunks = re.split(r'[.,;/]|\bdan\b|\batau\b', query_clean)
+        # --- 3. SHARED CHUNKING ---
+        print(f"🧩 [NLP] Membedah kalimat (Chunking)...")
+        delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b'
+        raw_chunks = re.split(delimiters, query_clean)
         
-        # Membersihkan setiap pecahan kalimat
+        stop_words = ["pasien", "mengeluhkan", "gejala", "ditemukan", "adanya", "ada", "terdapat", "diagnosis", "didiagnosis", "yang", "di", "ke", "dari", "ini", "itu", "nya", "ialah", "adalah", "terdapat", "alami", "mengidap", "penyakit", "mengalami", "juga", "seharusnya"]
+        
         clean_chunks = []
         for chunk in raw_chunks:
-            clean_chunk = chunk
+            temp = chunk
             for word in stop_words:
-                clean_chunk = re.sub(rf'\b{word}\b', '', clean_chunk)
-            clean_chunk = re.sub(r'[^\w\s]', '', clean_chunk)
-            clean_chunk = " ".join(clean_chunk.split())
-            if len(clean_chunk) > 2:
-                clean_chunks.append(clean_chunk)
+                temp = re.sub(rf'\b{word}\b', '', temp)
+            temp = " ".join(re.sub(r'[^\w\s]', '', temp).split())
+            if len(temp) > 2:
+                clean_chunks.append(temp)
 
-       # ==========================================================
-        # LAPIS 1: EXACT MATCH (MENGGUNAKAN TRUE EXACT MATCH)
-        # ==========================================================
-        print(f"\n🔍 [LAPIS 1] Mencari kecocokan pasti (Exact Match) di DB...")
-        
-        final_result_groups = []
-        unmatched_chunks = []
-        
-        for clean_chunk in clean_chunks:
-            print(f"   ➤ Cek Exact Match untuk: '{clean_chunk}'")
+        print(f"🧩 [NLP] Hasil Clean Chunks: {clean_chunks}")
+
+        # --- 4. PROSES PENCARIAN (GROUPING SERAGAM) ---
+        grouped_data = {} 
+        chunks_to_ai = []
+
+        start_l1 = time.time()
+        print(f"\n🔍 [LAPIS 1] MEMULAI EXACT MATCHING (SQL)")
+        for chunk in clean_chunks:
+            diag_db = db.execute(text("SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
+            symp_db = db.execute(text("SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
             
-            # PERBAIKAN: Hapus tanda f"%...%" agar menjadi True Exact Match
-            # Tambahkan TRIM() untuk berjaga-jaga jika ada spasi berlebih di database Anda
-            exact_results_db = db.execute(text("""
-                SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE :q
-                UNION
-                SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE :q
-            """), {"q": clean_chunk}).fetchall() # <--- Perhatikan bagian ini, tanda % dihilangkan
-            
-            chunk_herbs = {row[0] for row in exact_results_db}
-            
-            if chunk_herbs:
-                print(f"      ✅ Berhasil ({len(chunk_herbs)} tanaman)")
-                safe_herbs = get_safe_herbs(chunk_herbs, sel_cond)
-                if safe_herbs:
-                    final_details = get_details(safe_herbs)
-                    if final_details:
-                        final_result_groups.append({
-                            "group_type": "Pencocokan Pasti", 
-                            "group_name": f"Terkait: {clean_chunk.capitalize()}", 
-                            "herbs": final_details
-                        })
+            if diag_db or symp_db:
+                print(f"      ✅ [DITEMUKAN] Cocok di tabel SQL.")
+                baku_name = chunk.strip().capitalize()
+                db_res = diag_db if diag_db else symp_db
+                safe = get_safe_herbs({row[0] for row in db_res}, sel_cond)
+                herbs_list = get_details(safe)
+                
+                if herbs_list:
+                    if baku_name not in grouped_data:
+                        grouped_data[baku_name] = {
+                            "group_type": "Diagnosis" if diag_db else "Gejala",
+                            "group_name": baku_name,
+                            "herbs": herbs_list,
+                            "detected_from_list": [chunk]
+                        }
+                    else:
+                        if chunk not in grouped_data[baku_name]["detected_from_list"]:
+                            grouped_data[baku_name]["detected_from_list"].append(chunk)
             else:
-                print(f"      ❌ Gagal")
-                unmatched_chunks.append(clean_chunk)
-       # ==========================================================
-        # LAPIS 2: AI MENCARI NAMA PENYAKIT BAKU (SEMANTIC CONCEPT MAPPING)
-        # ==========================================================
-        if unmatched_chunks:
-            print(f"\n⚠️ Mengaktifkan Lapis 2: AI SBERT untuk menebak nama penyakit...")
+                print(f"      ❌ [SQL FAIL] Tidak ada di SQL. Kirim '{chunk}' ke Lapis 2.")
+                chunks_to_ai.append(chunk)
+        
+        print(f"⏱️  Waktu Lapis 1 (SQL): {(time.time() - start_l1)*1000:.2f} ms")
+
+        # --- 5. LAPIS 2: ANALISIS AI SBERT ---
+        if chunks_to_ai:
+            start_l2 = time.time()
+            print(f"\n🧠 [LAPIS 2] MEMULAI ANALISIS AI SBERT")
             from sentence_transformers import SentenceTransformer
             import chromadb
-
-            model = SentenceTransformer('intfloat/multilingual-e5-small')
+            model_ai = SentenceTransformer('intfloat/multilingual-e5-small')
             chroma_client = chromadb.PersistentClient(path="./chroma_db")
             collection = chroma_client.get_collection(name="med_labels")
-            
-            # --- TAMBAHAN BARU: Keranjang untuk mengelompokkan penyakit ---
-            # Format: { "Bisul": ["infeksi furunkel", "benjolan bernanah"], "Demam": [...] }
-            ai_detected_diseases = {}
 
-            for clean_chunk in unmatched_chunks:
-                print(f"   ➤ AI Menganalisis Keluhan: '{clean_chunk}'")
-                chunk_vector = model.encode([f"query: {clean_chunk}"]).tolist()
+            print(f"🧠 [LAPIS 2 - MODE RAG] Menganalisis Kamus Medis...")
+            for chunk in chunks_to_ai:
+                cv = model_ai.encode([f"query: {chunk}"]).tolist()
+                sr = collection.query(query_embeddings=cv, n_results=1)
                 
-                search_results = collection.query(
-                    query_embeddings=chunk_vector,
-                    n_results=3, 
-                    include=["documents", "distances", "metadatas"]
-                )
-                
-                if search_results and search_results['distances'] and search_results['distances'][0]:
-                    best_label = None
-                    for i, distance in enumerate(search_results['distances'][0]):
-                        similarity_score = (1 - distance) * 100
-                        label_penyakit = search_results['metadatas'][0][i]['baku']
-                        
-                        if similarity_score >= 88.0 and best_label is None:
-                            best_label = label_penyakit
-                            print(f"      ✅ AI YAKIN! Keluhan '{clean_chunk}' maksudnya adalah = '{best_label}'")
+                if sr['distances'][0]:
+                    similarity = (1 - sr['distances'][0][0]) * 100
+                    label_baku = sr['metadatas'][0][0]['baku'].strip()
+                    baku_cap = label_baku.capitalize()
                     
-                    # --- TAMBAHAN BARU: Masukkan keluhan ke keranjang penyakit yang sama ---
-                    if best_label:
-                        if best_label not in ai_detected_diseases:
-                            ai_detected_diseases[best_label] = []
-                        ai_detected_diseases[best_label].append(clean_chunk)
+                    print(f"   ➤ AI RAG: '{chunk}' ⮕ '{label_baku}' ({similarity:.2f}%)")
+                    
+                    if similarity >= 88.0:
+                        ai_db = db.execute(text("""
+                            SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q) 
+                            UNION 
+                            SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE TRIM(:q)
+                        """), {"q": label_baku}).fetchall()
+                        
+                        safe_ai = get_safe_herbs({r[0] for r in ai_db}, sel_cond)
+                        herbs_ai_list = get_details(safe_ai)
+                        
+                        if herbs_ai_list:
+                            if baku_cap not in grouped_data:
+                                is_diag = db.execute(text("SELECT 1 FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": label_baku}).first()
+                                grouped_data[baku_cap] = {
+                                    "group_type": "Diagnosis" if is_diag else "Gejala", 
+                                    "group_name": baku_cap, 
+                                    "herbs": herbs_ai_list,
+                                    "detected_from_list": [chunk]
+                                }
+                            else:
+                                if chunk not in grouped_data[baku_cap]["detected_from_list"]:
+                                    grouped_data[baku_cap]["detected_from_list"].append(chunk)
+            
+            print(f"⏱️  Waktu Lapis 2 (AI/SBERT): {(time.time() - start_l2)*1000:.2f} ms")
+            
+            
+            # --- MODE B: PURE SBERT ---
+            # print(f"⚠️  [MODE] Lapis 2 menggunakan SBERT (Direct Knowledge Search)...")
+            # collection = chroma_client.get_collection(name="med_labels")
+            # for chunk in chunks_to_ai:
+            #     print(f"   ➤ AI sedang menganalisis makna: '{chunk}'...")
+            #     cv = model_ai.encode([f"query: {chunk}"]).tolist()
+            #     sr = collection.query(query_embeddings=cv, n_results=1)
+            #     
+            #     if sr['distances'][0]:
+            #         distance = sr['distances'][0][0]
+            #         similarity = (1 - distance) * 100
+            #         label_baku = sr['metadatas'][0][0]['baku']
+            #         
+            #         print(f"      🤖 [AI RESULT] '{chunk}' mirip dengan '{label_baku}' (Skor: {similarity:.2f}%)")
+            #         
+            #         if similarity >= 88.0:
+            #             print(f"      ✅ [DITERIMA] Skor di atas 88%. Melakukan mapping ke database.")
+            #             is_diag = db.execute(text("SELECT 1 FROM herbal_diagnoses WHERE diagnosis = :q"), {"q": label_baku}).first()
+            #             
+            #             ai_db = db.execute(text("""
+            #                 SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE :q 
+            #                 UNION 
+            #                 SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE :q
+            #             """), {"q": label_baku}).fetchall()
+            #             safe_ai = get_safe_herbs({r[0] for r in ai_db}, sel_cond)
+            #             
+            #             final_result_groups.append({
+            #                 "group_type": "Diagnosis" if is_diag else "Gejala",
+            #                 "group_name": label_baku, 
+            #                 "mapping_info": f"Sistem mengenali keluhan '{chunk}' Anda sebagai '{label_baku}'",
+            #                 "herbs": get_details(safe_ai)
+            #             })
+            #         else:
+            #             print(f"      ⚠️  [REJECT] Skor terlalu rendah. AI tidak yakin.")
+            
+        
+            # end_l2 = (time.time() - start_l2) * 1000
+            # print(f"⏱️  Waktu Lapis 2 (AI/SBERT): {end_l2:.2f} ms")
 
-            # --- SETELAH SEMUA KELUHAN DIANALISIS, BARU CARI HERBALNYA ---
-            for label, chunks_list in ai_detected_diseases.items():
-                gabungan_keluhan = ", ".join(chunks_list) # Gabungkan: "infeksi furunkel, benjolan bernanah"
-                
-                ai_results_db = db.execute(text("""
-                    SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE :q
-                    UNION
-                    SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE :q
-                """), {"q": label}).fetchall()
-                
-                chunk_ai_herbs = {row[0] for row in ai_results_db}
-                if chunk_ai_herbs:
-                    safe_ai_herbs = get_safe_herbs(chunk_ai_herbs, sel_cond)
-                    if safe_ai_herbs:
-                        final_ai_details = get_details(safe_ai_herbs)
-                        if final_ai_details:
-                            final_result_groups.append({
-                                "group_type": "Analisis AI", 
-                                "group_name": label, # Sekarang namanya cukup "Bisul" saja
-                                "detected_from": gabungan_keluhan, # Kita kirim keluhannya secara terpisah ke FE
-                                "herbs": final_ai_details
-                            })
-                            
+        # --- 6. FINAL CONSOLIDATION (PENYERAGAMAN FORMAT 100%) ---
+        final_result_groups = []
+        
+        for name, data in grouped_data.items():
+            sources = data["detected_from_list"]
+            
+            # FORMAT 1: Header (Tampilan Luar) - Rapi tanpa spasi tambahan
+            h_list = [f'"{s}"' for s in sources]
+            h_text = ", ".join(h_list[:-1]) + f' dan {h_list[-1]}' if len(h_list) > 1 else h_list[0]
+            header_info = f"Berdasarkan keluhan: {h_text}"
+
+            # FORMAT 2: Kotak Biru (Informasi Pengenalan)
+            # Menghilangkan spasi ekstra di dalam petik sesuai permintaan Anda
+            m_list = [f'"{s}"' for s in sources] 
+            m_text = ", ".join(m_list[:-1]) + f' dan {m_list[-1]}' if len(m_list) > 1 else m_list[0]
+            
+            # Kalimat: Berdasarkan keluhan "A", sistem mengenali sebagai "B"
+            # Ditambahkan tanda petik pada bagian {name}
+            mapping_info = f'Berdasarkan keluhan {m_text}, sistem mengenali sebagai "{name}"'
+
+            final_result_groups.append({
+                "group_type": data["group_type"],
+                "group_name": name,
+                "header_info": header_info,
+                "mapping_info": mapping_info,
+                "herbs": data["herbs"]
+            })
+
+        end_total = (time.time() - start_total) * 1000
+        print(f"\n✨ [FINISH] Analisis selesai. Ditemukan {len(final_result_groups)} kategori.")
+        print(f"⏱️  Total Waktu Backend: {end_total:.2f} ms")
+        print(f"{'='*70}\n")
+
         if final_result_groups:
             save_history(final_result_groups)
-            print(f"{'='*60}\n")
             return final_result_groups
-
-        print(f"   ❌ Sistem gagal menemukan kecocokan yang aman.")
-        print(f"{'='*60}\n")
         return []
 
     except Exception as e:
-        import traceback
+        print(f"\n🔥 [CRITICAL ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     

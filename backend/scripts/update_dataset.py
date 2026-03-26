@@ -89,6 +89,14 @@ def seed_postgresql():
                 'deskripsi efek': 'description',
                 'referensi': 'reference'
             }
+        },
+        "Kamus medis": {
+            "file": "datasets/Kamus_Medis.csv",
+            "table": "kamus_medis",
+            "mapping": {
+                'Nama Diagnosis/Gejala': 'istilah_baku',
+                'Sinonim': 'sinonim_awam'
+            }
         }
     }
 
@@ -105,16 +113,44 @@ def seed_postgresql():
             df = read_csv_robust(filepath)
             df.columns = df.columns.astype(str).str.strip()
 
-            df.columns = [
-                'Nama Herbal' if col == 'Nama Hebal' else col
-                for col in df.columns
-            ]
+            df.columns = ['Nama Herbal' if col == 'Nama Hebal' else col for col in df.columns]
 
-            df = df.rename(columns=info['mapping'])
+            # Khusus untuk Kamus Medis: Kita perlu memecah sinonim yang dipisahkan newline (\n)
+            if label == "Kamus medis":
+                # Lakukan rename dulu sesuai mapping
+                df = df.rename(columns=info['mapping'])
+                
+                if 'sinonim_awam' in df.columns:
+                    # 1. BERSIHKAN ISTILAH BAKU (PENTING!)
+                    # Ini agar 'Mual ' menjadi 'Mual'
+                    df['istilah_baku'] = df['istilah_baku'].astype(str).str.strip()
+                    
+                    # 2. BERSIHKAN SINONIM
+                    df['sinonim_awam'] = df['sinonim_awam'].astype(str)
+                    
+                    # Pecah kolom sinonim_awam berdasarkan newline menjadi list
+                    df['sinonim_awam'] = df['sinonim_awam'].apply(lambda x: x.split('\n'))
+                    
+                    # Gunakan fungsi explode
+                    df = df.explode('sinonim_awam')
+                    
+                    # Bersihkan spasi di tiap sinonim hasil pecahan
+                    df['sinonim_awam'] = df['sinonim_awam'].str.strip()
+                    
+                    # Hapus baris yang kosong atau "nan"
+                    df = df[~df['sinonim_awam'].isin(["", "nan", "None"])]
+            else:
+                # Untuk tabel Herbal Gejala & Diagnosis, bersihkan juga kolom kuncinya
+                df = df.rename(columns=info['mapping'])
+                if 'symptom' in df.columns: df['symptom'] = df['symptom'].astype(str).str.strip()
+                if 'diagnosis' in df.columns: df['diagnosis'] = df['diagnosis'].astype(str).str.strip()
+
+            # Filter hanya kolom yang ada di mapping values
             valid_cols = [c for c in df.columns if c in info['mapping'].values()]
             df = df[valid_cols]
             df.fillna("", inplace=True)
 
+            # Masukkan ke database (ganti tabel yang lama)
             df.to_sql(info['table'], engine, if_exists='replace', index=True, index_label='index')
             print(f"[OK] {len(df)} baris berhasil masuk ke tabel '{info['table']}'")
             success_count += 1
@@ -211,67 +247,56 @@ def rebuild_kamus_medis_chromadb():
     print("\n" + "="*55)
     print("STEP 5 - REBUILD KAMUS MEDIS (MED_LABELS) DI CHROMADB")
     print("="*55)
-    
     try:
         from sentence_transformers import SentenceTransformer
         import chromadb
-        
         engine = create_engine(DATABASE_URL)
         
-        query_dasar = "SELECT DISTINCT diagnosis as label FROM herbal_diagnoses WHERE diagnosis IS NOT NULL AND diagnosis != '' UNION SELECT DISTINCT symptom as label FROM herbal_symptoms WHERE symptom IS NOT NULL AND symptom != ''"
-        query_kamus = "SELECT istilah_baku, sinonim_awam FROM kamus_medis WHERE istilah_baku IS NOT NULL AND sinonim_awam IS NOT NULL"
+        # Ambil label unik dari database utama (Diagnosis & Gejala)
+        query_dasar = "SELECT DISTINCT diagnosis as label FROM herbal_diagnoses WHERE diagnosis != '' UNION SELECT DISTINCT symptom as label FROM herbal_symptoms WHERE symptom != ''"
+        # Ambil sinonim dari Kamus Medis yang baru saja di-seed
+        query_kamus = "SELECT istilah_baku, sinonim_awam FROM kamus_medis"
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            df_dasar = pd.read_sql_query(query_dasar, engine)
-            try:
-                df_kamus = pd.read_sql_query(query_kamus, engine)
-            except Exception:
-                df_kamus = pd.DataFrame(columns=['istilah_baku', 'sinonim_awam'])
+        df_dasar = pd.read_sql_query(query_dasar, engine)
+        df_kamus = pd.read_sql_query(query_kamus, engine)
 
-        print("Memuat Model AI untuk Kamus (intfloat/multilingual-e5-small)...")
         model = SentenceTransformer('intfloat/multilingual-e5-small')
-        
         documents, metadatas, ids = [], [], []
-        counter = 0
+        
+        # 1. Daftarkan istilah baku dari dataset herbal
+        for idx, label in enumerate(df_dasar['label'].tolist()):
+            documents.append(label.lower())
+            metadatas.append({"baku": label})
+            ids.append(f"db_{idx}")
 
-        for label in df_dasar['label'].tolist():
-            label_str = str(label).strip()
-            documents.append(label_str.lower())
-            metadatas.append({"baku": label_str}) 
-            ids.append(f"db_{counter}")
-            counter += 1
+        # 2. Daftarkan sinonim awam dari kamus medis
+        for idx, row in df_kamus.iterrows():
+            documents.append(str(row['sinonim_awam']).lower())
+            metadatas.append({"baku": str(row['istilah_baku'])})
+            ids.append(f"syn_{idx}")
 
-        for _, row in df_kamus.iterrows():
-            documents.append(str(row['sinonim_awam']).strip().lower())
-            metadatas.append({"baku": str(row['istilah_baku']).strip()})
-            ids.append(f"syn_{counter}")
-            counter += 1
-
-        # WAJIB UNTUK MODEL E5: Tambahkan prefix "query: "
         texts = [f"query: {doc}" for doc in documents]
         embeddings = model.encode(texts, show_progress_bar=True).tolist()
 
         chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
         collection = chroma_client.get_or_create_collection(name="med_labels", metadata={"hnsw:space": "cosine"})
-
         collection.add(documents=documents, embeddings=embeddings, metadatas=metadatas, ids=ids)
-        print("[OK] Kamus Sinonim & Terminologi berhasil ditanamkan ke ChromaDB!")
+        
+        print(f"[OK] Kamus Medis Rebuilt: {collection.count()} entri.")
         return True
     except Exception as e:
-        print(f"[GAGAL] Rebuild Kamus Medis ChromaDB gagal: {e}")
+        print(f"Gagal Rebuild Kamus: {e}")
         return False
 
 if __name__ == "__main__":
     print("="*55)
-    print("  HERBALYZE - UPDATE DATASET (1 MODEL: E5-SMALL)")
+    print("  HERBALYZE - UPDATE DATASET DENGAN KAMUS MEDIS")
     print("="*55)
     if not seed_postgresql(): sys.exit(1)
     reset_chromadb()
     ok_herbal = rebuild_chromadb()
     ok_kamus = rebuild_kamus_medis_chromadb()
-
     if ok_herbal and ok_kamus:
-        print("\n✅ SELESAI! Seluruh sistem kini menggunakan 1 model (intfloat/multilingual-e5-small).")
+        print("\n✅ SELESAI! Kamus Medis kini aktif.")
     else:
         print("\n⚠️ Selesai dengan catatan error.")

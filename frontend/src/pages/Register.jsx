@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { connectWallet, signMessage } from '../utils/web3Helpers';
+import { connectWallet } from '../utils/web3Helpers';
 
 // ─── Toast Component ────────────────────────────────────────────────────────
 function Toast({ toasts, removeToast }) {
@@ -36,13 +36,17 @@ function Toast({ toasts, removeToast }) {
 const Register = () => {
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
-    
-    // Step 1: Register, Step 2: Link Wallet
     const [step, setStep] = useState(1);
     const [registeredUser, setRegisteredUser] = useState(null);
-
-    // toast notifikasi
     const [toasts, setToasts] = useState([]);
+    const [errors, setErrors] = useState({});
+
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
 
     const showToast = (type, title, message) => {
         const id = Date.now();
@@ -56,54 +60,79 @@ const Register = () => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
     };
 
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-    });
-
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        // Hapus error saat user mulai mengetik lagi
+        if (errors[e.target.name]) {
+            setErrors({ ...errors, [e.target.name]: null });
+        }
     };
 
     const handleRegister = async (e) => {
-        e.preventDefault();
-        
-        if (formData.password !== formData.confirmPassword) {
-            showToast("error", "Validasi Gagal", "Kata sandi tidak cocok! Silakan periksa kembali.");
-            return;
-        }
+    e.preventDefault();
+    const newErrors = {};
 
-        setIsLoading(true);
-        try {
-            const response = await fetch('http://localhost:8000/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
+    // 1. Validasi Nama
+    if (!formData.name.trim()) {
+        newErrors.name = "Nama lengkap wajib diisi";
+    }
 
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Pendaftaran gagal');
+    // 2. Validasi Email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email) {
+        newErrors.email = "Email wajib diisi";
+    } else if (!emailRegex.test(formData.email)) {
+        newErrors.email = "Format email salah (contoh: budi@email.com)";
+    }
 
-            // Sukses, lanjut ke Langkah 2 (Connect Wallet)
-            setRegisteredUser(data.user);
-            setStep(2);
+    // 3. Validasi Password (ANGKA 123 PASTI GAGAL DI SINI)
+    // Syarat: Minimal 8 karakter, ada huruf BESAR, huruf kecil, angka, dan simbol
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;    
+    if (!formData.password) {
+        newErrors.password = "Kata sandi wajib diisi";
+    } else if (!passwordRegex.test(formData.password)) {
+        newErrors.password = "Harus 8+ karakter, ada huruf besar, kecil, angka, & simbol";
+    }
 
-        } catch (error) {
-            showToast("error", "Gagal Mendaftar", error.message || "Terdapat kesalahan saat mendaftar");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // 4. Validasi Konfirmasi Password
+    if (formData.confirmPassword !== formData.password) {
+        newErrors.confirmPassword = "Konfirmasi kata sandi tidak cocok";
+    }
+
+    // --- BAGIAN PALING KRUSIAL: SI GERBANG TOL ---
+    if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors); // Tampilkan garis merah dan pesan error
+        showToast("error", "Pendaftaran Ditolak", "Input tidak sesuai kriteria keamanan.");
+        return; // <--- INI WAJIB ADA! Berfungsi untuk menghentikan kode agar tidak lanjut ke API
+    }
+
+    // Jika lolos dari 'return' di atas, baru jalankan proses kirim data
+    setErrors({}); 
+    setIsLoading(true);
+
+    try {
+        const response = await fetch('http://localhost:8000/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Pendaftaran gagal');
+
+        setRegisteredUser(data.user);
+        setStep(2);
+    } catch (error) {
+        showToast("error", "Gagal Mendaftar", error.message);
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const handleLinkWallet = async () => {
         setIsLoading(true);
         try {
-            // Langkah 1: Connect wallet dan dapatkan address
             const address = await connectWallet();
-            
-            // Langkah 2: Tautkan wallet ke akun
             const response = await fetch('http://localhost:8000/api/connect-wallet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -114,29 +143,30 @@ const Register = () => {
             });
 
             const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Gagal menautkan wallet');
-            }
+            if (!response.ok) throw new Error(data.error || 'Gagal menautkan wallet');
 
-            // Sukses! Simpan sesi dan masuk ke Beranda
             localStorage.setItem('user_wallet', address);
             localStorage.setItem('user_profile', JSON.stringify(data.user));
-
             navigate('/home');
-
         } catch (error) {
-            console.error("Kesalahan Tautkan Wallet:", error);
-            showToast("error", "Koneksi Gagal", "Gagal menghubungkan akun: " + error.message);
+            showToast("error", "Koneksi Gagal", error.message);
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Helper untuk styling border merah
+    const getInputClass = (fieldName) => {
+        const baseClass = "mt-1 block w-full px-4 py-3 border rounded-xl shadow-sm sm:text-sm transition-all outline-none";
+        if (errors[fieldName]) {
+            return `${baseClass} border-red-500 bg-red-50 focus:ring-1 focus:ring-red-500`;
+        }
+        return `${baseClass} border-gray-300 focus:ring-1 focus:ring-primary-40`;
+    };
+
     return (
         <div className="min-h-screen flex flex-col md:flex-row font-sans relative">
-            {/* Toast Notifikasi */}
             <Toast toasts={toasts} removeToast={removeToast} />
-            {/* Animasi toast */}
             <style>{`
               @keyframes slide-in {
                 0% { transform: translateX(100%); opacity: 0; }
@@ -145,97 +175,50 @@ const Register = () => {
               .animate-slide-in { animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
             `}</style>
             
-            {/* Sisi Kiri: Formulir */}
             <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative z-10">
                 <div className="max-w-md w-full">
                     {step === 1 ? (
-                        // LANGKAH 1: FORMULIR PENDAFTARAN
                         <div className="bg-white p-8 rounded-2xl shadow-xl">
                             <div className="text-center mb-8">
                                 <h1 className="text-4xl font-extrabold text-primary-40 tracking-tight">Herbalyze</h1>
                                 <h2 className="text-3xl font-bold text-gray-900 mt-2">Buat Akun Baru</h2>
-                                <p className="text-gray-500 mt-2">Bergabunglah dengan Herbalyze</p>
                             </div>
 
-                            <form className="space-y-6" onSubmit={handleRegister}>
+                            {/* KUNCI UTAMA: noValidate ditambahkan di sini */}
+                            <form className="space-y-6" onSubmit={handleRegister} noValidate>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Nama Lengkap</label>
-                                    <input 
-                                        name="name" 
-                                        type="text" 
-                                        required 
-                                        placeholder="Sesuai KTP"
-                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
-                                        value={formData.name}
-                                        onChange={handleChange}
-                                    />
+                                    <input name="name" type="text" className={getInputClass("name")} placeholder="Sesuai KTP" value={formData.name} onChange={handleChange} />
+                                    {errors.name && <p className="mt-1 text-[11px] text-red-500 font-medium ml-1">⚠️ {errors.name}</p>}
                                 </div>
                                 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Alamat Email</label>
-                                    <input 
-                                        name="email" 
-                                        type="email" 
-                                        required 
-                                        placeholder="contoh@email.com"
-                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                    />
+                                    <input name="email" type="email" className={getInputClass("email")} placeholder="contoh@email.com" value={formData.email} onChange={handleChange} />
+                                    {errors.email && <p className="mt-1 text-[11px] text-red-500 font-medium ml-1">⚠️ {errors.email}</p>}
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Kata Sandi</label>
-                                    <input 
-                                        name="password" 
-                                        type="password" 
-                                        required 
-                                        placeholder="Minimal 8 karakter"
-                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                    />
+                                    <input name="password" type="password" className={getInputClass("password")} placeholder="Minimal 8 karakter" value={formData.password} onChange={handleChange} />
+                                    {errors.password && <p className="mt-1 text-[11px] text-red-500 font-medium ml-1">⚠️ {errors.password}</p>}
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Konfirmasi Kata Sandi</label>
-                                    <input 
-                                        name="confirmPassword" 
-                                        type="password" 
-                                        required 
-                                        placeholder="Ketik ulang kata sandi"
-                                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary-40 focus:border-primary-40 sm:text-sm transition-all"
-                                        value={formData.confirmPassword}
-                                        onChange={handleChange}
-                                    />
+                                    <input name="confirmPassword" type="password" className={getInputClass("confirmPassword")} placeholder="Ketik ulang kata sandi" value={formData.confirmPassword} onChange={handleChange} />
+                                    {errors.confirmPassword && <p className="mt-1 text-[11px] text-red-500 font-medium ml-1">⚠️ {errors.confirmPassword}</p>}
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Peran Pengguna (Role)</label>
-                                    <select disabled className="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm sm:text-sm text-gray-500 cursor-not-allowed">
-                                        <option>Pasien (Default)</option>
-                                    </select>
-                                    
-                                    {/* --- INFORMASI TAMBAHAN UNTUK DOKTER --- */}
-                                    <div className="mt-3 p-4 bg-blue-50/50 border border-blue-100 rounded-xl flex items-start gap-3">
-                                        <div className="text-xl mt-0.5">🩺</div>
-                                        <div>
-                                            <h4 className="text-sm font-bold text-blue-800">Anda Tenaga Medis ?</h4>
-                                            <p className="text-xs text-blue-600 mt-1 leading-relaxed">
-                                                Seluruh akun didaftarkan sebagai Pasien pada awalnya. Anda dapat mengajukan verifikasi akses Dokter melalui menu Data Personal setelah pendaftaran selesai.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {/* -------------------------------------- */}
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    disabled={isLoading}
-                                    className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-lg shadow-primary-40/30 text-sm font-bold text-white bg-primary-40 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-40 transition-all active:scale-95 mt-4"
-                                >
+                                <button type="submit" disabled={isLoading} className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-lg shadow-primary-40/30 text-sm font-bold text-white bg-primary-40 hover:bg-primary-50 transition-all active:scale-95 mt-4">
                                     {isLoading ? 'Memproses...' : 'Daftar Akun'}
                                 </button>
+
+                                <p className="mt-4 text-center text-[11px] text-gray-400 leading-relaxed px-4">
+                                    Ingin mendaftar sebagai Tenaga Medis? Anda dapat mengajukan verifikasi melalui 
+                                    <span className="font-semibold text-gray-500"> pengaturan profil </span> 
+                                    setelah akun aktif.
+                                </p>
                             </form>
                             <div className="text-center mt-6">
                                 <span onClick={() => navigate('/')} className="text-primary-40 text-sm font-medium cursor-pointer hover:underline">
@@ -244,24 +227,16 @@ const Register = () => {
                             </div>
                         </div>
                     ) : (
-                        // LANGKAH 2: LINK WALLET
+                        // ... Bagian Step 2 (MetaMask) tidak berubah ...
                         <div className="bg-white p-8 rounded-2xl shadow-xl text-center">
                             <div className="mb-6 flex justify-center">
                                 <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center animate-bounce">
                                     <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-12 h-12" />
                                 </div>
                             </div>
-                            
                             <h2 className="text-2xl font-bold text-gray-900 mb-2">Aktivasi Akun Anda</h2>
-                            <p className="text-gray-500 mb-8">
-                                Langkah terakhir! Hubungkan dompet digital Anda (ekstensi browser MetaMask) untuk mengaktifkan keamanan penuh pada data medis Anda.
-                            </p>
-
-                            <button 
-                                onClick={handleLinkWallet}
-                                disabled={isLoading}
-                                className="w-full flex justify-center items-center gap-3 py-3 px-6 border border-gray-300 rounded-xl text-gray-800 bg-white hover:bg-gray-50 shadow-md transform transition hover:scale-105"
-                            >
+                            <p className="text-gray-500 mb-8">Hubungkan dompet digital MetaMask untuk mengaktifkan keamanan data medis.</p>
+                            <button onClick={handleLinkWallet} disabled={isLoading} className="w-full flex justify-center items-center gap-3 py-3 px-6 border border-gray-300 rounded-xl text-gray-800 bg-white hover:bg-gray-50 shadow-md transform transition hover:scale-105">
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-6 h-6" />
                                 <span className="font-bold">Aktivasi dengan Dompet Digital</span>
                             </button>
@@ -270,22 +245,99 @@ const Register = () => {
                 </div>
             </div>
 
-            {/* Sisi Kanan: Visual */}
-            <div className="hidden md:flex md:w-1/2 bg-gradient-to-b from-green-200 via-green-400 to-green-800 relative overflow-hidden flex-col justify-center items-center">
-                <div className="relative z-10 text-center max-w-lg px-8">
-                    <div className="mb-8 transform hover:scale-105 transition duration-500">
-                        <div className="w-40 h-40 bg-white/30 backdrop-blur-md rounded-full mx-auto flex items-center justify-center shadow-2xl border border-white/40">
-                            <span className="text-6xl filter drop-shadow-lg">🌿</span>
+         {/* ─── SISI KANAN: THE EMERALD SANCTUARY (CINEMATIC DARK) ─── */}
+<div className="hidden md:flex md:w-1/2 relative overflow-hidden bg-[#011a12] flex-col justify-start items-center border-l border-emerald-500/10">
+    
+    {/* 1. CINEMATIC LIGHTING (God Rays & Moving Aura) */}
+    <div className="absolute inset-0 z-0 pointer-events-none">
+        {/* Utama: Emerald Glow */}
+        <div className="absolute top-[-10%] left-[-10%] w-[100%] h-[100%] bg-emerald-600/10 rounded-full blur-[120px] animate-aura-slow"></div>
+        {/* God Rays: Cahaya menyilang yang bergerak pelan */}
+        <div className="absolute top-[-50%] left-[20%] w-[20%] h-[200%] bg-gradient-to-b from-transparent via-emerald-400/5 to-transparent rotate-[35deg] animate-ray-move"></div>
+        <div className="absolute top-[-50%] left-[50%] w-[15%] h-[200%] bg-gradient-to-b from-transparent via-emerald-400/3 to-transparent rotate-[35deg] animate-ray-move-delayed"></div>
+    </div>
+
+    {/* 2. PREMIUM TEXTURE (Noise & Fine Grid) */}
+    <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
+         style={{ backgroundImage: `radial-gradient(#ffffff 0.5px, transparent 0.5px)`, backgroundSize: '40px 40px' }}></div>
+    <div className="absolute inset-0 opacity-[0.2] pointer-events-none mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+
+    {/* 3. CONTENT AREA (Sejajar dengan Judul Form - pt-32) */}
+    <div className="relative z-10 w-full max-w-lg px-12 pt-32 flex flex-col items-center md:items-start">
+        
+        {/* Ikon dengan Aura & Floating Effect */}
+        <div className="mb-14 relative group animate-soft-float">
+            <div className="absolute -inset-6 bg-emerald-500 rounded-full blur-3xl opacity-20"></div>
+            <div className="relative w-32 h-32 bg-gradient-to-br from-[#042f21] to-[#011a12] rounded-[2.5rem] flex items-center justify-center border border-white/10 shadow-2xl overflow-hidden">
+                <span className="text-6xl filter drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">🌿</span>
+                {/* Kilatan cahaya kaca */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent -translate-x-full animate-shimmer"></div>
+            </div>
+        </div>
+
+        {/* Branding & Quote */}
+        <div className="space-y-10 w-full text-center md:text-left">
+            <div className="space-y-3">
+                <h2 className="text-5xl font-black tracking-tight text-white leading-none">
+                    HERBALYZE<span className="text-emerald-500">.</span>
+                </h2>
+                <div className="flex items-center gap-3 justify-center md:justify-start">
+                    <span className="h-[2px] w-12 bg-emerald-500"></span>
+                    <span className="text-lg font-light tracking-[0.4em] text-emerald-300/80 uppercase">Pure Essence</span>
+                </div>
+            </div>
+            
+            {/* The Ultimate Glass Card */}
+            <div className="backdrop-blur-[40px] bg-white/[0.02] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden group">
+                {/* Cahaya di pinggiran kartu */}
+                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent"></div>
+                
+                <p className="text-emerald-50 text-2xl font-semibold leading-tight mb-6">
+                    “Kebijaksanaan alam <span className="text-emerald-400">abadi</span>,<br/>dilindungi teknologi masa depan.”
+                </p>
+                
+                <p className="text-emerald-100/40 text-sm leading-relaxed mb-10 font-light">
+                    Satu-satunya ekosistem yang menjaga warisan pengobatan herbal tetap murni dengan keamanan <b>Blockchain</b> dan akurasi <b>Kecerdasan Buatan</b>.
+                </p>
+
+                {/* Badge Fitur (Style Modern) */}
+                <div className="flex flex-wrap gap-3">
+                    {["Blockchain", "AI Analysis", "Safe Data"].map((item) => (
+                        <div key={item} className="px-5 py-2 bg-emerald-500/5 border border-emerald-500/10 rounded-full text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                            {item}
                         </div>
-                    </div>
-                    {/* Tagline utama tetap bahasa Inggris karena nama brand, atau bisa disesuaikan */}
-                    <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Herbalyze</h2>
-                    <p className="text-white text-lg font-medium bg-white/20 p-5 rounded-xl backdrop-blur-sm shadow-lg leading-relaxed">
-                        "Data kesehatan Anda dijamin aman dengan enkripsi tingkat tinggi. Rasakan pengalaman masa depan dalam rekomendasi pengobatan herbal."
-                    </p>
+                    ))}
                 </div>
             </div>
         </div>
+    </div>
+
+    {/* 4. CUSTOM ANIMATIONS */}
+    <style>{`
+        @keyframes aura-slow {
+            0%, 100% { transform: scale(1) translate(0, 0); }
+            50% { transform: scale(1.1) translate(20px, 30px); }
+        }
+        @keyframes ray-move {
+            0% { transform: translateX(-100%) rotate(35deg); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateX(100%) rotate(35deg); opacity: 0; }
+        }
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+        @keyframes soft-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        .animate-aura-slow { animation: aura-slow 15s infinite alternate ease-in-out; }
+        .animate-ray-move { animation: ray-move 8s infinite linear; }
+        .animate-ray-move-delayed { animation: ray-move 10s infinite linear 3s; }
+        .animate-shimmer { animation: shimmer 4s infinite; }
+        .animate-soft-float { animation: soft-float 6s infinite ease-in-out; }
+    `}</style>
+</div>
+        </div> 
     );
 };
 

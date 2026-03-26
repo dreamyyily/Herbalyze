@@ -76,8 +76,7 @@ export default function ResultSection({ recommendations, selectedDrug }) {
           </p>
         )}
       </div>
-
-      {/* --- DAFTAR ACCORDION (LACI) --- */}
+{/* --- DAFTAR ACCORDION (LACI) --- */}
       {totalHerbs > 0 && (
         <div className="max-w-5xl mx-auto space-y-4">
           {recommendations.map((group, index) => {
@@ -98,9 +97,7 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                     isOpen ? 'bg-primary-10/40' : 'bg-light-10 hover:bg-light-20/80'
                   }`}
                 >
-                  {/* === BAGIAN KIRI: Ikon & Judul === */}
                   <div className="flex items-center gap-4 sm:gap-6 text-left">
-                    
                     {/* Ikon Semantik */}
                     <div className={`flex items-center justify-center flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-sm ${
                       isDiagnosis ? 'bg-indigo-100 text-indigo-600' : 'bg-orange-100 text-orange-600'
@@ -112,7 +109,6 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                       )}
                     </div>
                     
-                    {/* Teks Judul */}
                     <div>
                       <h4 className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1 ${
                         isDiagnosis ? 'text-indigo-500' : 'text-orange-500'
@@ -121,21 +117,21 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                       </h4>
                       
                       {/* DESAIN HEADER BARU YANG ELEGAN & RAPI */}
-                      <div className="flex flex-col">
-                        <h3 className="text-xl sm:text-2xl font-extrabold text-dark-50 leading-tight capitalize">
-                          {group.group_name.replace("Terkait: ", "")}
-                        </h3>
-                        {group.detected_from && (
-                          <span className="text-sm font-medium text-dark-30 mt-1 sm:mt-1.5 italic">
-                            Berdasarkan keluhan: "{group.detected_from}"
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex flex-col">
+                      <h3 className="text-xl sm:text-2xl font-extrabold text-dark-50 leading-tight capitalize">
+                        {group.group_name.replace("Terkait: ", "")}
+                      </h3>
+                      
+                      {/* REVISI DI SINI: Gunakan header_info dan jangan potong teksnya lagi */}
+                      {group.header_info && !isOpen && (
+                        <span className="text-sm font-medium text-dark-30 mt-1 sm:mt-1.5 italic animate-fade-in line-clamp-1">
+                          {group.header_info}
+                        </span>
+                      )}
                     </div>
+                    </div>
+                  </div>
 
-                  </div> {/* <--- INI DIA TAG PENUTUP YANG HILANG TADI! */}
-
-                  {/* === BAGIAN KANAN: Badge Jumlah & Panah === */}
                   <div className="flex items-center gap-3 sm:gap-5">
                     <span className="hidden sm:flex items-center justify-center px-4 py-1.5 bg-light-10 border border-light-40 rounded-full text-sm font-bold text-dark-30 shadow-sm">
                       {group.herbs.length} Tanaman
@@ -148,10 +144,36 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                   </div>
                 </button>
 
-                {/* 3.2. ISI LACI (GRID KARTU HERBAL) */}
+                {/* 3.2. ISI LACI (DIBUKA) */}
                 {isOpen && (
                   <div className="animate-[slideDown_0.3s_ease-out] border-t border-light-40 bg-light-20/50 p-5 sm:p-8">
                     
+                    {/* KOTAK BIRU INFORMASI: Sekarang menampilkan teks identik dengan header */}
+                    {group.mapping_info && (
+                      <div className="mb-8 flex items-start gap-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 p-5 rounded-[2rem] shadow-sm">
+                        <div className="bg-white p-2.5 rounded-xl text-indigo-500 shadow-sm flex-shrink-0 mt-0.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M11.3 1.047a.75.75 0 01.974 0l6.5 5.5a.75.75 0 010 1.14l-6.5 5.5a.75.75 0 01-.974 0l-6.5-5.5a.75.75 0 010-1.14l6.5-5.5zM4.362 7L11.3 12.873 18.238 7 11.3 1.127 4.362 7zM4.293 11.293a1 1 0 011.414 0L10 15.586l4.293-4.293a1 1 0 111.414 1.414l-5 5a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                        <p className="text-sm leading-relaxed text-indigo-900 font-bold mb-0.5">
+                          Informasi Pengenalan Sistem
+                        </p>
+                        
+                        {/* REVISI DI SINI: Hapus tanda petik pembungkus agar teks langsung muncul dari backend */}
+                        <p className="text-[13px] text-indigo-700/80 italic leading-relaxed">
+                          {group.mapping_info} 
+                        </p>
+                        
+                        <p className="text-[10px] text-indigo-400 mt-2 font-medium uppercase tracking-wider">
+                          Diverifikasi menggunakan arsitektur Hybrid-Search (SQL & SBERT)
+                        </p>
+                      </div>
+                      </div>
+                    )}
+                    {/* ... sisa grid herbs Anda di bawahnya ... */}
+
                     {/* Logika Tata Letak Grid: Auto-center jika jumlah kartu sedikit */}
                     <div className={`grid gap-6 lg:gap-8 transition-all duration-500 ${
                       group.herbs.length === 1 
@@ -220,7 +242,6 @@ export default function ResultSection({ recommendations, selectedDrug }) {
           })}
         </div>
       )}
-
       {/* ========================================================================
           4. MODAL POPUP DETAIL LENGKAP
           Muncul menutupi layar (Overlay) ketika sebuah kartu di-klik
