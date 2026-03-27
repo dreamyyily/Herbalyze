@@ -333,7 +333,7 @@ const Login = () => {
                             <div className="w-full border-t border-gray-300"></div>
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">Atau masuk melalui jaringan Blockchain</span>
+                            <span className="px-2 bg-white text-gray-500">Atau masuk melalui dompet digital</span>
                         </div>
                     </div>
 
@@ -370,7 +370,7 @@ const Login = () => {
                      </div>
                     <h2 className="text-4xl font-extrabold text-white mb-4 drop-shadow-lg">Herbalyze</h2>
                     <p className="text-white text-lg font-medium bg-white/20 p-5 rounded-xl backdrop-blur-sm shadow-lg leading-relaxed">
-                        "Data kesehatan Anda dijamin aman oleh teknologi Blockchain. Rasakan pengalaman masa depan dalam rekomendasi pengobatan herbal."
+                        "Kesehatanmu. Alami. Terlindungi."
                     </p>
                 </div>
             </div>

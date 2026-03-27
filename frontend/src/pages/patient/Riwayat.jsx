@@ -19,6 +19,19 @@ const formatTanggalPendek = (iso) => {
   }).format(new Date(iso));
 };
 
+// ─── Star Icon ────────────────────────────────────────────────────────────────
+function StarIcon({ filled }) {
+  return filled ? (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth={1}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  );
+}
+
 // ─── Modal Konfirmasi Hapus ───────────────────────────────────────────────────
 function DeleteModal({ hist, onConfirm, onCancel, isDeleting }) {
   const allInputs = [...(hist?.diagnoses || []), ...(hist?.symptoms || [])];
@@ -48,12 +61,12 @@ function DeleteModal({ hist, onConfirm, onCancel, isDeleting }) {
   );
 }
 
-// ─── Helpers (sama persis dengan ResultSection) ───────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const getCleanName = (rawName) =>
   rawName ? rawName.split(/[\r\n]+/).map(n => n.trim()).filter(n => n !== "").join(", ")
            : "Nama Herbal Tidak Diketahui";
 
-// ─── Modal Detail Herbal (full, identik dengan ResultSection) ─────────────────
+// ─── Modal Detail Herbal ──────────────────────────────────────────────────────
 function HerbDetailModal({ herb, onClose }) {
   if (!herb) return null;
 
@@ -66,7 +79,6 @@ function HerbDetailModal({ herb, onClose }) {
     (herb.source_link  && herb.source_link.toLowerCase().includes("socfindo")) ||
     (herb.source_label && herb.source_label.toLowerCase().includes("socfindo"));
 
-  // Multi-bagian tanaman
   const partsArray  = herb.part
     ? herb.part.split(/[\r\n]+/).map(p => p.trim()).filter(Boolean)
     : ["Tidak Terdata"];
@@ -78,7 +90,6 @@ function HerbDetailModal({ herb, onClose }) {
     : [herb.part_image];
   const isMultiPart = partsArray.length > 1;
 
-  // Referensi
   const sourceLinks  = herb.source_link  ? herb.source_link.split(/[\r\n]+/).map(s => s.trim()).filter(s => s && s !== "-")  : [];
   const sourceLabels = herb.source_label ? herb.source_label.split(/[\r\n]+/).map(s => s.trim()).filter(s => s && s !== "-") : [];
 
@@ -91,7 +102,6 @@ function HerbDetailModal({ herb, onClose }) {
         className="relative bg-white rounded-[28px] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-[slideUp_0.3s_ease-out]"
         onClick={e => e.stopPropagation()}
       >
-        {/* Close button */}
         <button onClick={onClose}
           className="absolute top-4 right-4 z-10 p-2 bg-white/60 hover:bg-white backdrop-blur-md rounded-full text-gray-500 hover:text-red-500 transition-colors shadow-sm">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -99,10 +109,7 @@ function HerbDetailModal({ herb, onClose }) {
           </svg>
         </button>
 
-        {/* Scrollable content */}
         <div className="overflow-y-auto">
-
-          {/* Header gambar */}
           <div className="h-64 sm:h-72 relative bg-gray-100 w-full shrink-0">
             {herb.image && (
               <img src={herb.image} alt={primaryName} className="w-full h-full object-cover"
@@ -119,10 +126,7 @@ function HerbDetailModal({ herb, onClose }) {
             </div>
           </div>
 
-          {/* Body */}
           <div className="p-6 sm:p-8 space-y-6">
-
-            {/* Nama daerah / alias */}
             {aliasNames && (
               <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
@@ -135,7 +139,6 @@ function HerbDetailModal({ herb, onClose }) {
               </div>
             )}
 
-            {/* Bagian tanaman & cara penggunaan */}
             <div>
               <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
@@ -148,7 +151,6 @@ function HerbDetailModal({ herb, onClose }) {
                   const prepText   = prepsArray[idx] || prepsArray[0];
                   const partImgUrl = imagesArray[idx] || imagesArray[0];
 
-                  // Render preparation text
                   let renderPrep;
                   if (isSocfindo) {
                     const steps = prepText.includes("\n") ? prepText.split(/[\r\n]+/) : prepText.split(/\.\s+/);
@@ -190,7 +192,6 @@ function HerbDetailModal({ herb, onClose }) {
                         {isMultiPart && <span className="bg-emerald-100 text-emerald-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">{idx + 1}</span>}
                         {isMultiPart ? `Bagian ${partName}` : `Bagian: ${partName}`}
                       </h5>
-                      {/* Gambar bagian tanaman (object-contain agar tidak terpotong) */}
                       {partImgUrl && partImgUrl !== "-" && (
                         <div className="w-full h-44 sm:h-52 rounded-xl mb-5 overflow-hidden bg-white border border-gray-100 shadow-sm flex items-center justify-center p-2">
                           <img src={partImgUrl} alt={`Bagian ${partName}`}
@@ -205,15 +206,12 @@ function HerbDetailModal({ herb, onClose }) {
               </div>
             </div>
 
-            {/* Referensi (link URL + buku offline) */}
             <div className="pt-4 border-t border-dashed border-gray-200">
               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Sumber Kajian &amp; Referensi</h4>
               <div className="flex flex-col gap-2">
                 {sourceLinks.length === 0 && sourceLabels.length === 0 && (
                   <span className="text-sm text-gray-400 italic">Tidak ada referensi tertaut.</span>
                 )}
-                
-                {/* 1. Render Link URL (jika ada) */}
                 {sourceLinks.map((link, i) => (
                   <a key={`link-${i}`} href={link} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-10 text-sm text-primary-40 hover:text-primary-60 transition-colors border border-transparent hover:border-primary-20">
@@ -223,10 +221,7 @@ function HerbDetailModal({ herb, onClose }) {
                     <span className="line-clamp-2 leading-snug break-all font-medium">{sourceLabels[i] || link}</span>
                   </a>
                 ))}
-
-                {/* 2. Render Referensi Buku / Teks (jika ada, tanpa link yang valid) */}
                 {sourceLabels.map((label, i) => {
-                  // Jika label ini sudah memiliki pasangan link di atas (urutan indeks sama), abaikan
                   if (sourceLinks[i]) return null;
                   return (
                     <div key={`label-${i}`} className="inline-flex items-start gap-3 p-3 rounded-xl bg-gray-50 text-sm text-gray-700 border border-gray-100">
@@ -239,7 +234,6 @@ function HerbDetailModal({ herb, onClose }) {
                 })}
               </div>
             </div>
-
           </div>
         </div>
       </div>
@@ -247,13 +241,22 @@ function HerbDetailModal({ herb, onClose }) {
   );
 }
 
-// ─── Card Riwayat (terbuka langsung, bisa dilipat) ──────────────────────────
-function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
-  const [expanded, setExpanded] = useState(true); // default langsung terbuka
-  const allInputs = [...(hist.diagnoses || []), ...(hist.symptoms || [])];
+// ─── Card Riwayat ─────────────────────────────────────────────────────────────
+function RiwayatCard({ hist, index, onDelete, onSelectHerb, isFavorite, onToggleFavorite }) {
+  const [expanded, setExpanded] = useState(true);
+  const [starAnimating, setStarAnimating] = useState(false);
+
+  const allInputs  = [...(hist.diagnoses || []), ...(hist.symptoms || [])];
   const totalHerbs = hist.recommendations?.reduce((s, g) => s + g.herbs.length, 0) || 0;
   const totalGroups = hist.recommendations?.length || 0;
   const hasCondition = hist.special_conditions?.length > 0 && hist.special_conditions[0] !== "Tidak ada";
+
+  const handleStarClick = (e) => {
+    e.stopPropagation();
+    setStarAnimating(true);
+    onToggleFavorite(hist.id);
+    setTimeout(() => setStarAnimating(false), 300);
+  };
 
   return (
     <div
@@ -289,9 +292,25 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
               )}
             </div>
 
-            {/* Kanan: stats + expand button */}
+            {/* Kanan: star + badges */}
             <div className="flex flex-col items-end gap-2 shrink-0">
               <div className="flex items-center gap-2">
+                {/* ⭐ Star Button — di antara tanggal-area dan badge herbal */}
+                <button
+                  onClick={handleStarClick}
+                  title={isFavorite ? "Hapus dari favorit" : "Tambah ke favorit"}
+                  className={`
+                    p-1.5 rounded-full transition-all duration-200
+                    ${isFavorite
+                      ? "text-amber-400 hover:bg-amber-50"
+                      : "text-gray-400 hover:text-amber-400 hover:bg-amber-50"}
+                    ${starAnimating ? "scale-125" : "scale-100"}
+                  `}
+                  style={{ transition: "transform 0.2s cubic-bezier(0.34,1.56,0.64,1), color 0.2s" }}
+                >
+                  <StarIcon filled={isFavorite} />
+                </button>
+
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-10 text-primary-50 text-xs font-bold rounded-full">
                   🌿 {totalHerbs} Herbal
                 </span>
@@ -331,13 +350,12 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
           </div>
         </div>
 
-        {/* ── Panel Rekomendasi (langsung terbuka) ── */}
+        {/* ── Panel Rekomendasi ── */}
         {expanded && hist.recommendations && hist.recommendations.length > 0 && (
           <div className="border-t border-gray-100 bg-gray-50/50 px-5 md:px-6 pt-4 pb-5">
             <div className="space-y-6">
               {hist.recommendations.map((group, gi) => (
                 <div key={gi}>
-                  {/* Label grup */}
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${group.group_type === "Analisis AI" ? "bg-purple-100 text-purple-600" : "bg-primary-10 text-primary-50"}`}>
                       {group.group_type === "Analisis AI" ? "🤖 Analisis AI" : "🔍 Pencocokan"}
@@ -346,7 +364,6 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
                     <span className="ml-auto text-xs text-gray-400 font-semibold">{group.herbs.length} herbal</span>
                   </div>
 
-                  {/* List herbal — layout informatif */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {group.herbs.map((herb, hi) => (
                       <div
@@ -354,7 +371,6 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
                         onClick={() => onSelectHerb(herb)}
                         className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-primary-30 hover:shadow-md transition-all duration-200 flex cursor-pointer group/herb"
                       >
-                        {/* Gambar */}
                         <div className="w-20 shrink-0 bg-gradient-to-b from-primary-10/50 to-green-50 flex items-center justify-center overflow-hidden">
                           {herb.image ? (
                             <img src={herb.image} alt={herb.name} className="w-full h-full object-cover group-hover/herb:scale-105 transition-transform duration-300"
@@ -363,7 +379,6 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
                             <span className="text-3xl">🌿</span>
                           )}
                         </div>
-                        {/* Info */}
                         <div className="flex-1 p-3 min-w-0">
                           {(() => {
                             const clean = getCleanName(herb.name);
@@ -409,23 +424,41 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb }) {
   );
 }
 
+// ─── localStorage helpers untuk favorites ─────────────────────────────────────
+const FAV_KEY = "herbalyze_riwayat_favorites";
+
+const loadFavorites = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+};
+
+const saveFavorites = (set) => {
+  localStorage.setItem(FAV_KEY, JSON.stringify([...set]));
+};
+
 // ─── KOMPONEN UTAMA ───────────────────────────────────────────────────────────
 export default function Riwayat() {
-  const [histories, setHistories] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [histories, setHistories]     = useState([]);
+  const [isLoading, setIsLoading]     = useState(true);
+  const [error, setError]             = useState(null);
 
   // Filter
-  const [searchTerm, setSearchTerm] = useState("");
-  const [timeFilter, setTimeFilter] = useState("semua");
+  const [searchTerm, setSearchTerm]   = useState("");
+  const [timeFilter, setTimeFilter]   = useState("semua");
+
+  // Favorites
+  const [favorites, setFavorites]     = useState(loadFavorites);
 
   // Modal & notif
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleting, setIsDeleting]     = useState(false);
   const [notification, setNotification] = useState(null);
   const [selectedHerb, setSelectedHerb] = useState(null);
 
-  // ── Fetch riwayat ──────────────────────────────────────────────────────────
+  // ── Fetch riwayat ────────────────────────────────────────────────────────
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -457,22 +490,39 @@ export default function Riwayat() {
     }
   }, [notification]);
 
-  // ── Filter engine ──────────────────────────────────────────────────────────
+  // ── Toggle Favorite ───────────────────────────────────────────────────────
+  const handleToggleFavorite = useCallback((histId) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(histId)) {
+        next.delete(histId);
+      } else {
+        next.add(histId);
+      }
+      saveFavorites(next);
+      return next;
+    });
+  }, []);
+
+  // ── Filter engine ─────────────────────────────────────────────────────────
   const filteredHistories = histories.filter((hist) => {
     const allInputs = [...(hist.diagnoses || []), ...(hist.symptoms || [])].join(" ").toLowerCase();
     const matchesSearch = allInputs.includes(searchTerm.toLowerCase());
 
+    // Favorit tab
+    if (timeFilter === "favorit") return matchesSearch && favorites.has(hist.id);
+
     let matchesTime = true;
     if (timeFilter !== "semua" && hist.created_at) {
       const diffDays = Math.ceil(Math.abs(new Date() - new Date(hist.created_at)) / (1000 * 60 * 60 * 24));
-      if (timeFilter === "7hari") matchesTime = diffDays <= 7;
+      if (timeFilter === "7hari")  matchesTime = diffDays <= 7;
       if (timeFilter === "30hari") matchesTime = diffDays <= 30;
     }
 
     return matchesSearch && matchesTime;
   });
 
-  // ── Handler hapus ──────────────────────────────────────────────────────────
+  // ── Handler hapus ─────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -480,6 +530,13 @@ export default function Riwayat() {
       const wallet = localStorage.getItem("user_wallet");
       const res = await fetch(`${API}/api/history/${deleteTarget.id}?wallet_address=${wallet}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Gagal menghapus riwayat.");
+      // Juga hapus dari favorit jika ada
+      setFavorites(prev => {
+        const next = new Set(prev);
+        next.delete(deleteTarget.id);
+        saveFavorites(next);
+        return next;
+      });
       setHistories((prev) => prev.filter((h) => h.id !== deleteTarget.id));
       setNotification({ type: "success", message: "Riwayat berhasil dihapus." });
     } catch (err) {
@@ -490,13 +547,16 @@ export default function Riwayat() {
     }
   };
 
-  const totalHerbsAll = histories.reduce((s, h) =>
+  const totalHerbsAll  = histories.reduce((s, h) =>
     s + (h.recommendations?.reduce((x, g) => x + g.herbs.length, 0) || 0), 0);
+  const totalFavorites = histories.filter(h => favorites.has(h.id)).length;
+
+  const isFavoritTab = timeFilter === "favorit";
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <MainLayout>
-      {/* Modal */}
+      {/* Modal Hapus */}
       {deleteTarget && (
         <DeleteModal
           hist={deleteTarget}
@@ -532,7 +592,7 @@ export default function Riwayat() {
             Semua hasil analisis herbal Anda tersimpan di sini.
           </p>
 
-          {/* Stats bar */}
+          {/* ── Stats Bar (2 stat + Favorit, tanpa Ditampilkan) ── */}
           {!isLoading && !error && histories.length > 0 && (
             <div className="flex items-center justify-center gap-6 mt-5">
               <div className="text-center">
@@ -546,8 +606,8 @@ export default function Riwayat() {
               </div>
               <div className="w-px h-8 bg-gray-200"></div>
               <div className="text-center">
-                <p className="text-2xl font-extrabold text-green-600">{filteredHistories.length}</p>
-                <p className="text-xs text-gray-400 font-semibold">Ditampilkan</p>
+                <p className="text-2xl font-extrabold text-amber-500">{totalFavorites}</p>
+                <p className="text-xs text-gray-400 font-semibold">⭐ Favorit</p>
               </div>
             </div>
           )}
@@ -572,13 +632,24 @@ export default function Riwayat() {
               />
             </div>
 
-            {/* Time filter tabs */}
+            {/* Time filter tabs — sekarang termasuk Favorit */}
             <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 gap-1">
-              {[{ id: "semua", label: "Semua" }, { id: "7hari", label: "7 Hari" }, { id: "30hari", label: "30 Hari" }].map((btn) => (
+              {[
+                { id: "semua",   label: "Semua" },
+                { id: "7hari",   label: "7 Hari" },
+                { id: "30hari",  label: "30 Hari" },
+                { id: "favorit", label: "⭐ Favorit" },
+              ].map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => setTimeFilter(btn.id)}
-                  className={`flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 whitespace-nowrap ${timeFilter === btn.id ? "bg-white text-primary-50 shadow-sm border border-gray-100" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`flex-1 px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 whitespace-nowrap
+                    ${timeFilter === btn.id
+                      ? btn.id === "favorit"
+                        ? "bg-amber-50 text-amber-600 shadow-sm border border-amber-100"
+                        : "bg-white text-primary-50 shadow-sm border border-gray-100"
+                      : "text-gray-400 hover:text-gray-600"
+                    }`}
                 >
                   {btn.label}
                 </button>
@@ -614,7 +685,7 @@ export default function Riwayat() {
           </div>
         )}
 
-        {/* ── Empty ── */}
+        {/* ── Empty (belum ada riwayat sama sekali) ── */}
         {!isLoading && !error && histories.length === 0 && (
           <div className="bg-white border-2 border-dashed border-gray-200 hover:border-primary-20 transition-colors rounded-[28px] p-14 text-center">
             <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-5">
@@ -633,8 +704,23 @@ export default function Riwayat() {
           </div>
         )}
 
-        {/* ── No result (filter) ── */}
-        {!isLoading && !error && histories.length > 0 && filteredHistories.length === 0 && (
+        {/* ── Empty Favorit ── */}
+        {!isLoading && !error && histories.length > 0 && isFavoritTab && filteredHistories.length === 0 && (
+          <div className="bg-white border-2 border-dashed border-amber-100 hover:border-amber-200 transition-colors rounded-[28px] p-14 text-center">
+            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-extrabold text-gray-700 mb-2">Belum ada riwayat favorit</h3>
+            <p className="text-gray-400 text-sm max-w-xs mx-auto leading-relaxed">
+              Tandai riwayat pencarian dengan ⭐ untuk menyimpannya di sini.
+            </p>
+          </div>
+        )}
+
+        {/* ── No result (filter selain favorit) ── */}
+        {!isLoading && !error && histories.length > 0 && !isFavoritTab && filteredHistories.length === 0 && (
           <div className="bg-white border border-gray-100 rounded-[24px] p-10 text-center shadow-sm">
             <span className="text-4xl mb-3 block">🔍</span>
             <h4 className="text-base font-bold text-gray-700 mb-1">Tidak Ditemukan</h4>
@@ -658,6 +744,8 @@ export default function Riwayat() {
                 index={index}
                 onDelete={setDeleteTarget}
                 onSelectHerb={setSelectedHerb}
+                isFavorite={favorites.has(hist.id)}
+                onToggleFavorite={handleToggleFavorite}
               />
             ))}
           </div>

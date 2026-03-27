@@ -66,6 +66,46 @@ const PatientOnlyRoute = ({ children }) => {
     return children;
 };
 
+// Route yang butuh login tapi TIDAK perlu profil lengkap (hanya cek role)
+const PatientDoctorRouteWithAuth = ({ children }) => {
+    const location = useLocation();
+    const [roleStatus, setRoleStatus] = useState(null); // null=loading, true=ok, false=rejected
+
+    useEffect(() => {
+        const wallet = localStorage.getItem('user_wallet');
+        if (!wallet) {
+            setRoleStatus(false);
+            return;
+        }
+        // Cek dari localStorage dulu (cepat)
+        const cached = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        const validRoles = ['Patient', 'Doctor', 'Pending_Doctor', 'Rejected_Doctor'];
+        if (cached.role && validRoles.includes(cached.role)) {
+            setRoleStatus(true);
+            return;
+        }
+        // Jika belum ada di cache, fetch dari API
+        fetch(`http://localhost:8000/api/profile/${wallet}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.role) {
+                    localStorage.setItem('user_profile', JSON.stringify({ ...cached, role: data.role, name: data.name, foto_profil: data.foto_profil || null }));
+                }
+                const ok = validRoles.includes(data.role);
+                setRoleStatus(ok);
+            })
+            .catch(() => setRoleStatus(false));
+    }, []);
+
+    if (roleStatus === null) {
+        return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    }
+    if (!roleStatus) {
+        return <Navigate to="/" state={{ from: location }} replace />;
+    }
+    return children;
+};
+
 const PatientDoctorRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const location = useLocation();
@@ -136,11 +176,11 @@ const AppContent = () => {
             } />
 
             <Route path="/perizinan-dokter" element={
-                <PatientDoctorRoute><DaftarDokter /></PatientDoctorRoute>
+                <PatientDoctorRouteWithAuth><DaftarDokter /></PatientDoctorRouteWithAuth>
             } />
 
             <Route path="/catatan-dokter" element={
-                <PatientDoctorRoute><CatatanDokter /></PatientDoctorRoute>
+                <PatientDoctorRouteWithAuth><CatatanDokter /></PatientDoctorRouteWithAuth>
             } />
 
             <Route path="/rekam-medis" element={
