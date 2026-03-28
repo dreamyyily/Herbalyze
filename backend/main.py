@@ -82,6 +82,32 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Mengecek kecocokan password
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
+def is_child_under_five(wallet_address: str, db: Session) -> bool:
+    """
+    Mengecek apakah user dengan wallet_address berusia di bawah 5 tahun.
+    Mengembalikan True jika iya, False jika tidak atau data tidak tersedia.
+    """
+    if not wallet_address or wallet_address == "guest_user":
+        return False
+    try:
+        user = db.query(User).filter(
+            func.lower(User.wallet_address) == wallet_address.lower()
+        ).first()
+        if not user or not user.tanggal_lahir:
+            return False
+
+        if isinstance(user.tanggal_lahir, str):
+            tgl = datetime.strptime(user.tanggal_lahir, "%Y-%m-%d").date()
+        else:
+            tgl = user.tanggal_lahir 
+
+        today = datetime.utcnow().date()
+        age_years = (today - tgl).days / 365.25
+        return age_years < 5
+    except Exception as e:
+        print(f"⚠️ Gagal cek usia user: {e}")
+        return False
+
 def generate_random_nonce():
     return f"Herbalyze Authentication\n\nPlease sign this message to authenticate with your wallet.\n\nSecret Nonce: {secrets.token_hex(16)}"
 
@@ -527,6 +553,12 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
             "Anak di bawah lima tahun": "anak di bawah 5 tahun"
         }
         sel_cond = [condition_mapping.get(c, c) for c in raw_cond if c != "Tidak ada"]
+        
+        if is_child_under_five(wallet_addr, db):
+            child_cond = "anak di bawah 5 tahun"
+            if child_cond not in sel_cond:
+                sel_cond.append(child_cond)
+                print(f"👶 [AUTO] User {wallet_addr} terdeteksi berusia <5 tahun, kondisi '{child_cond}' ditambahkan otomatis.")
 
         def get_safe_herbs(herb_names, conditions):
             if not herb_names or not conditions: return list(herb_names)
@@ -628,6 +660,12 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             "Anak di bawah lima tahun": "anak di bawah 5 tahun"
         }
         sel_cond = [condition_mapping.get(c, c) for c in req.kondisi if c != "Tidak ada"]
+        if is_child_under_five(req.wallet_address, db):
+            child_cond = "anak di bawah 5 tahun"
+            if child_cond not in sel_cond:
+                sel_cond.append(child_cond)
+                print(f"👶 [AUTO] User {req.wallet_address} terdeteksi berusia <5 tahun, kondisi '{child_cond}' ditambahkan otomatis.")
+
         print(f"⚙️  [PRE-PROCESS] Kondisi pasien: {sel_cond if sel_cond else 'Normal'}")
 
         # --- 2. HELPER FUNCTIONS (WAJIB ADA DI SINI AGAR TIDAK NAMEERROR) ---
