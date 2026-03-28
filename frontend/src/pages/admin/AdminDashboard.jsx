@@ -1,17 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import { getSignerContract, getSigner } from "../../utils/web3"; 
+import { sortByDate } from "../../utils/sort";
+import { formatTanggal } from "../../utils/formatTanggal";
+import { AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
 
 export default function AdminDashboard() {
   const [pendingDoctors, setPendingDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [approving, setApproving] = useState({});
-
-  // State Modal (Milik Anda)
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState("desc"); 
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // State Toast (Milik Anda)
   const [actionResult, setActionResult] = useState({
     isOpen: false,
     type: 'success', 
@@ -46,16 +45,17 @@ export default function AdminDashboard() {
     }, 4000);
   };
 
+  const sortedDoctors = sortByDate(pendingDoctors, "created_at", sortOrder);
+
   // --- LOGIKA APPROVE (Blockchain + Database) ---
   const executeApprove = async () => {
     if (!selectedDoctor) return;
-    const { walletAddress, nama } = selectedDoctor;
+    const walletAddress = selectedDoctor.wallet_address;
+    const nama = selectedDoctor.name;
 
-    setIsApproveModalOpen(false);
-    setApproving((prev) => ({ ...prev, [walletAddress]: true }));
+    setIsModalOpen(false);
 
     try {
-      // 1. Blockchain (Kode Teman)
       const signer = await getSigner();
       const signerAddress = await signer.getAddress();
       const contract = await getSignerContract();
@@ -68,7 +68,6 @@ export default function AdminDashboard() {
       const tx = await contract.approveUser(walletAddress);
       await tx.wait(); 
 
-      // 2. Database (Kode Anda)
       const response = await fetch("http://localhost:8000/api/admin/approve_doctor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,13 +77,26 @@ export default function AdminDashboard() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Gagal update database");
 
-      showToast('success', 'Berhasil', `${nama} telah resmi disahkan sebagai dokter terverifikasi.`);
+      const isGantiInstansi = selectedDoctor.instansi_lama && selectedDoctor.instansi_baru;
+
+      if (isGantiInstansi) {
+        showToast(
+          'success',
+          'Berhasil',
+          `Perubahan instansi ${nama} telah berhasil disetujui.`
+        );
+      } else {
+        showToast(
+          'success',
+          'Berhasil',
+          `${nama} telah resmi disahkan sebagai dokter terverifikasi.`
+        );
+      }
       fetchPendingDoctors();
     } catch (error) {
       const msg = error?.data?.message || error?.reason || error.message;
       showToast('danger', 'Gagal Approve', msg);
     } finally {
-      setApproving((prev) => ({ ...prev, [walletAddress]: false }));
       setSelectedDoctor(null);
     }
   };
@@ -96,13 +108,13 @@ export default function AdminDashboard() {
       const response = await fetch("http://localhost:8000/api/admin/reject_doctor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet_address: selectedDoctor.walletAddress }),
+        body: JSON.stringify({ wallet_address: selectedDoctor.wallet_address }),
       });
 
       if (!response.ok) throw new Error("Gagal menolak pengajuan");
 
-      setIsRejectModalOpen(false); 
-      showToast('danger', 'Ditolak', `Pengajuan ${selectedDoctor.nama} telah dihapus.`);
+      setIsModalOpen(false); 
+      showToast('danger', 'Ditolak', `Pengajuan ${selectedDoctor.name} telah dihapus.`);
       fetchPendingDoctors();
     } catch (error) {
       showToast('danger', 'Error', error.message);
@@ -134,35 +146,70 @@ export default function AdminDashboard() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b-2 border-primary-20 text-dark-30 text-xs uppercase font-bold">
+                    <th
+                      onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
+                      className="py-4 px-4 cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        Tanggal Pengajuan
+
+                        <div className="flex flex-col leading-none ml-1">
+                          <ChevronUp
+                            size={14}
+                            className={`transition ${
+                              sortOrder === "asc" ? "text-blue-600" : "text-gray-300"
+                            }`}
+                          />
+                          <ChevronDown
+                            size={14}
+                            className={`-mt-1 transition ${
+                              sortOrder === "desc" ? "text-blue-600" : "text-gray-300"
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </th>
                     <th className="py-4 px-4">Nama Akun</th>
-                    <th className="py-4 px-4">Wallet</th>
-                    <th className="py-4 px-4">STR</th>
-                    <th className="py-4 px-4">Dokumen</th>
+                    <th className="py-4 px-4">Jenis Pengajuan</th>
                     <th className="py-4 px-4 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingDoctors.map((doc, idx) => (
-                    <tr key={idx} className="border-b border-light-30 hover:bg-gray-50/50 transition">
-                      <td className="py-4 px-4 font-medium text-sm">{doc.name || "Anonim"}</td>
-                      <td className="py-4 px-4 font-mono text-[10px] text-gray-400">{doc.wallet_address.substring(0,10)}...</td>
-                      <td className="py-4 px-4 text-sm">{doc.nomor_str}</td>
-                      <td className="py-4 px-4">
-                        <a
-                          href={doc.dokumen_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 underline text-xs"
-                        >
-                          Lihat STR
-                        </a>
+                  {sortedDoctors.map((doc, idx) => (
+                    <tr key={idx} className="border-b hover:bg-gray-50 transition">
+
+                      <td className="py-4 px-4 text-sm font-medium">
+                        {formatTanggal(doc.created_at)}
                       </td>
-                      <td className="py-4 px-4 flex justify-center gap-2">
-                        <button onClick={() => {setSelectedDoctor({walletAddress: doc.wallet_address, nama: doc.name}); setIsRejectModalOpen(true);}} className="text-red-600 bg-red-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-100">Tolak</button>
-                        <button onClick={() => {setSelectedDoctor({walletAddress: doc.wallet_address, nama: doc.name}); setIsApproveModalOpen(true);}} disabled={approving[doc.wallet_address]} className="bg-primary-40 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50">
-                          {approving[doc.wallet_address] ? "⏳ Proses" : "✓ Approve"}
+
+                      <td className="py-4 px-4 font-medium text-sm">
+                        {doc.name || "Anonim"}
+                      </td>
+
+                      <td className="py-4 px-4">
+                        {doc.nomor_str ? (
+                          <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
+                            Dokter Baru
+                          </span>
+                        ) : (
+                          <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">
+                            Ganti Instansi
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-4 px-4 text-center">
+                        <button
+                          onClick={() => {
+                            setSelectedDoctor(doc);
+                            setIsModalOpen(true);        
+                          }}
+                          className="text-blue-600 hover:text-blue-700 font-medium underline underline-offset-4 transition text-sm"
+                        >
+                          Lihat Detail
                         </button>
                       </td>
+
                     </tr>
                   ))}
                 </tbody>
@@ -182,33 +229,101 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Modal Konfirmasi Approve */}
-        {isApproveModalOpen && selectedDoctor && (
+        {/* ==================== MODAL DETAIL ==================== */}
+        {isModalOpen && selectedDoctor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-50/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center border border-gray-100 animate-fade-in">
-              <h3 className="text-xl font-bold mb-4 text-gray-800">Sahkan Dokter?</h3>
-              <p className="text-sm text-gray-500 mb-8 leading-relaxed">Anda akan mengesahkan <span className="font-bold">{selectedDoctor.nama}</span> sebagai dokter terverifikasi. Proses ini memerlukan konfirmasi dari dompet digital Anda.</p>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8">
+
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Review Pengajuan</h3>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <p className="text-xs text-gray-400">Nama</p>
+                  <p className="font-semibold text-lg">{selectedDoctor.name}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400">Jenis Pengajuan</p>
+                  <p className="font-semibold">
+                    {selectedDoctor.instansi_lama ? "Perubahan Instansi" : "Pendaftaran Dokter Baru"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Instansi</p>
+                  {selectedDoctor.instansi_lama ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                      <p className="text-xs text-gray-500 line-through">{selectedDoctor.instansi_lama}</p>
+                      <p className="text-center text-gray-400 my-1">↓</p>
+                      <p className="font-bold text-blue-700">{selectedDoctor.instansi_baru}</p>
+                    </div>
+                  ) : (
+                    <p className="font-semibold">{selectedDoctor.nama_instansi || "-"}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400">Tanggal Pengajuan</p>
+                  <p className="font-semibold">{formatTanggal(selectedDoctor.created_at)}</p>
+                </div>
+
+                {selectedDoctor.nomor_str && (
+                  <div>
+                    <p className="text-xs text-gray-400">Nomor STR</p>
+                    <p className="font-semibold font-mono">{selectedDoctor.nomor_str}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Dokumen Pendukung</p>
+                  {selectedDoctor.dokumen_url ? (
+                    <a
+                      href={selectedDoctor.dokumen_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 underline text-sm"
+                    >
+                      Lihat Dokumen
+                    </a>
+                  ) : (
+                    <p className="text-gray-500 text-sm">Tidak ada dokumen</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-red-400 my-6">
+                <AlertTriangle size={16} className="text-red-400" />
+                <span>Pastikan semua data sudah benar sebelum mengambil keputusan</span>
+              </div>
+
+              {/* Tombol Tolak & Setujui */}
               <div className="flex gap-3">
-                <button onClick={() => setIsApproveModalOpen(false)} className="flex-1 py-3 text-gray-400 font-semibold">Batal</button>
-                <button onClick={executeApprove} className="flex-1 py-3 rounded-xl text-white bg-primary-40 font-bold">Lanjutkan</button>
+                <button
+                  onClick={executeReject}
+                  className="flex-1 py-3.5 border border-red-300 text-red-600 font-medium rounded-2xl hover:bg-red-50 transition"
+                >
+                  Tolak Pengajuan
+                </button>
+                <button
+                  onClick={executeApprove}
+                  className="flex-1 py-3.5 bg-primary-50 text-white font-bold rounded-2xl hover:bg-primary-60 transition"
+                >
+                  Setujui Pengajuan
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Modal Konfirmasi Reject */}
-        {isRejectModalOpen && selectedDoctor && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-50/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-fade-in">
-              <h3 className="text-xl font-bold mb-4 text-red-600">Tolak Pengajuan?</h3>
-              <p className="text-sm text-gray-500 mb-8">Data pengajuan <span className="font-bold">{selectedDoctor.nama}</span> akan dihapus selamanya.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setIsRejectModalOpen(false)} className="flex-1 py-3 text-gray-400 font-semibold">Batal</button>
-                <button onClick={executeReject} className="flex-1 py-3 rounded-xl text-white bg-red-500 font-bold">Ya, Tolak</button>
-              </div>
-            </div>
-          </div>
-        )}
+        
       </div>
     </MainLayout>
   );

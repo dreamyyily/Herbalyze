@@ -19,7 +19,7 @@ from db import get_db, Base, engine
 from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory, MedicalRecordDraft
 from fastapi.encoders import jsonable_encoder
 from blockchain_service import approve_wallet_on_chain, add_medical_record_on_chain
-
+from datetime import datetime
 from dotenv import load_dotenv
 import requests
 
@@ -303,6 +303,7 @@ async def request_doctor(
         user.role = "Pending_Doctor"
         user.nomor_str = nomor_str
         user.nama_instansi = nama_instansi
+        user.created_at = datetime.utcnow()
         
         db.commit()
         db.refresh(user)
@@ -322,7 +323,10 @@ def get_pending_doctors(db: Session = Depends(get_db)):
         d = u.to_dict()
         d["nomor_str"] = u.nomor_str
         d["nama_instansi"] = u.nama_instansi
+        d["instansi_lama"] = getattr(u, 'instansi_lama', None)
+        d["instansi_baru"] = getattr(u, 'instansi_baru', None)  
         d["dokumen_url"] = f"https://gateway.pinata.cloud/ipfs/{u.dokumen_str_path}" if u.dokumen_str_path else None
+        d["created_at"] = u.created_at.isoformat() if u.created_at else None
         result.append(d)
     return result
 
@@ -337,6 +341,10 @@ def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="User is not a Pending Doctor")
     
     user.role = "Doctor"
+    user.instansi_lama = None
+    if getattr(user, 'instansi_baru', None):
+        user.nama_instansi = user.instansi_baru
+        user.instansi_baru = None
     db.commit()
     db.refresh(user)
 
@@ -352,7 +360,6 @@ def approve_doctor(req: ApproveDoctorRequest, db: Session = Depends(get_db)):
         "blockchain_approved": blockchain_result.get("success", False)
     }
 
-# --- ENDPOINT BARU: REJECT DOCTOR ---
 @app.post("/api/admin/reject_doctor")
 def reject_doctor(req: RejectDoctorRequest, db: Session = Depends(get_db)):
     wallet_address = req.wallet_address.lower()
@@ -362,20 +369,22 @@ def reject_doctor(req: RejectDoctorRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     if user.role != "Pending_Doctor":
         raise HTTPException(status_code=400, detail="User is not a Pending Doctor")
-    
-    # Kembalikan role ke Patient
-    user.role = "Rejected_Doctor"
-    
-    # Opsional & Disarankan: Hapus data pengajuannya agar bersih jika ingin daftar ulang
-    user.nomor_str = None
-    user.nama_instansi = None
 
     user.dokumen_str_path = None
-    
+
+    if user.nomor_str:
+        user.nomor_str = None
+        user.nama_instansi = None
+        user.role = "Rejected_Doctor"
+    else:
+        user.instansi_baru = None
+        user.instansi_lama = None
+        user.role = "Doctor"   
+
     db.commit()
     db.refresh(user)
 
-    return {"message": f"Pengajuan dokter atas nama {user.name} berhasil ditolak dan data dihapus."}
+    return {"message": f"Pengajuan dokter atas nama {user.name} berhasil ditolak."}
 
     # (Tambahkan class request ini di bagian atas file bersama class Pydantic lainnya, atau di atas fungsi reset_role ini juga tidak apa-apa)
 class ResetRoleRequest(BaseModel):
@@ -396,6 +405,40 @@ def reset_role(req: ResetRoleRequest, db: Session = Depends(get_db)):
 
     return {"message": "Status berhasil direset menjadi Pasien", "user": user.to_dict()}
 
+@app.post("/api/doctor/update_instansi")
+async def update_instansi(
+    wallet_address: str = Form(...),
+    nama_instansi: str = Form(...),
+    file_sip: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(
+        func.lower(User.wallet_address) == wallet_address.lower()
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if user.role != "Doctor":
+        raise HTTPException(status_code=400, detail="Hanya dokter terverifikasi yang dapat mengubah instansi")
+
+    try:
+        cid = upload_to_ipfs(file_sip)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal upload dokumen SIP: {str(e)}")
+
+    user.instansi_lama = user.nama_instansi   
+    user.instansi_baru = nama_instansi.strip() 
+    user.dokumen_str_path = cid
+    user.role = "Pending_Doctor"
+    user.nomor_str = None
+    user.created_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "Perubahan instansi berhasil diajukan. Menunggu verifikasi admin.",
+        "user": user.to_dict()
+    }
 
 @app.get("/api/diagnoses")
 def get_diagnoses(db: Session = Depends(get_db)):

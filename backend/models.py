@@ -23,6 +23,8 @@ class User(Base):
     jenis_kelamin = Column(String(20), nullable=True)
     alergi_herbal = Column(JSON, default=list, nullable=True)
     foto_profil = Column(Text, nullable=True)
+    instansi_lama = Column(String, nullable=True)
+    instansi_baru = Column(String, nullable=True)
 
     def to_dict(self):
         return {

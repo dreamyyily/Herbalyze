@@ -7,7 +7,7 @@ import { formatTanggal } from "../../utils/formatTanggal";
 import { validateRequired } from "../../utils/validateForm";
 import MultiSelectField from "../../components/MultiSelectField";
 import Avatar from "../../components/Avatar";
-import { Pencil } from "lucide-react";
+import { Pencil, AlertTriangle, FileText, Clock, CheckCircle } from "lucide-react";
 
 const genderOptions = ["Laki-laki", "Perempuan"];
 
@@ -41,6 +41,11 @@ export default function DataPersonal() {
   };
 
   const [doctorRequest, setDoctorRequest] = useState({ nomorSTR: "", institusi: "", dokumen: null });
+  const [isEditInstansiOpen, setIsEditInstansiOpen] = useState(false);
+  const [newInstansi, setNewInstansi] = useState("");
+  const [isSubmittingInstansi, setIsSubmittingInstansi] = useState(false);
+  const [dokumenSIP, setDokumenSIP] = useState(null);
+
   const [formData, setFormData] = useState({ photo: null, nik: "", nama: "", tempatLahir: "", tanggalLahir: "", email: "", nomorHp: "", jenisKelamin: "", alergiHerbal: [] });
   const [originalData, setOriginalData] = useState(null);
 
@@ -68,7 +73,10 @@ export default function DataPersonal() {
           nomorHp: data.nomor_hp || "",
           jenisKelamin: data.jenis_kelamin || "",
           alergiHerbal: data.alergi_herbal || [],
+          instansi: data.nama_instansi || "",
+          instansi_baru: data.instansi_baru || "", 
           role: data.role || "Patient",
+          nomor_str: data.nomor_str || "",
         });
         setOriginalData({
           photo: data.foto_profil || null,
@@ -80,7 +88,10 @@ export default function DataPersonal() {
           nomorHp: data.nomor_hp || "",
           jenisKelamin: data.jenis_kelamin || "",
           alergiHerbal: data.alergi_herbal || [],
+          instansi: data.nama_instansi || "",
+          instansi_baru: data.instansi_baru || "", 
           role: data.role || "Patient",
+          nomor_str: data.nomor_str || "",
         });
         if (data.foto_profil) setPhotoPreview(data.foto_profil);
         // role n name to storage
@@ -190,6 +201,44 @@ export default function DataPersonal() {
       setFormData(prev => ({...prev, role: 'Patient'}));
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleSubmitGantiInstansi = async () => {
+    if (!newInstansi.trim()) {
+      showToast('danger', 'Data Kosong', 'Nama instansi baru tidak boleh kosong.');
+      return;
+    }
+    if (!dokumenSIP) {
+      showToast('danger', 'Dokumen Diperlukan', 'Harap upload dokumen SIP untuk instansi baru.');
+      return;
+    }
+    const walletAddress = localStorage.getItem("user_wallet");
+    if (!walletAddress) return;
+
+    setIsSubmittingInstansi(true);
+    try {
+      const formPayload = new FormData();
+      formPayload.append("wallet_address", walletAddress);
+      formPayload.append("nama_instansi", newInstansi.trim());
+      formPayload.append("file_sip", dokumenSIP);
+
+      const res = await fetch("http://localhost:8000/api/doctor/update_instansi", {
+        method: "POST",
+        body: formPayload,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Gagal mengajukan perubahan instansi");
+
+      setIsEditInstansiOpen(false);
+      setNewInstansi("");
+      setDokumenSIP(null);
+      setFormData(prev => ({ ...prev, role: 'Pending_Doctor', instansi_baru: newInstansi.trim() }));
+      showToast('success', 'Pengajuan Dikirim', 'Perubahan instansi sedang menunggu verifikasi admin.');
+    } catch (err) {
+      showToast('danger', 'Gagal', err.message);
+    } finally {
+      setIsSubmittingInstansi(false);
     }
   };
 
@@ -310,16 +359,48 @@ export default function DataPersonal() {
             <div className="mt-16 border-t border-gray-100 pt-12">
               
               {formData.role === 'Doctor' && (
-                <div className="p-6 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-5">
-                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl">🩺</div>
-                  <div><h4 className="text-xl font-bold text-blue-800">Dokter Terverifikasi</h4><p className="text-blue-600 mt-1">Akun Anda memiliki wewenang penuh untuk mencatat rekam medis pasien secara aman dan terenkripsi.</p></div>
+                <div className="p-6 bg-blue-50 border border-blue-200 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-5">
+                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl flex-shrink-0">🩺</div>
+                  <div className="flex-1">
+                    <h4 className="text-xl font-bold text-blue-800">Dokter Terverifikasi</h4>
+                    <p className="text-blue-600 mt-1 text-sm">Akun Anda memiliki wewenang penuh untuk mencatat rekam medis pasien secara aman dan terenkripsi.</p>
+                    <p className="text-blue-500 text-sm mt-2">
+                      Instansi: <span className="font-bold">{formData.instansi || "-"}</span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setNewInstansi(formData.instansi || ""); setIsEditInstansiOpen(true); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-blue-300 text-blue-600 hover:bg-blue-100 text-sm font-semibold transition whitespace-nowrap"
+                  >
+                    <Pencil size={14} /> Ganti Instansi
+                  </button>
                 </div>
               )}
               
               {formData.role === 'Pending_Doctor' && (
                 <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-2xl flex items-center gap-5">
-                  <div className="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 text-2xl">⏳</div>
-                  <div><h4 className="text-xl font-bold text-yellow-800">Menunggu Verifikasi Admin</h4><p className="text-yellow-700 mt-1">Dokumen STR Anda sedang dalam antrean pengecekan. Mohon bersabar, Anda akan segera mendapatkan akses dokter.</p></div>
+                  <div className="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 text-2xl flex-shrink-0"><Clock className="w-7 h-7" /></div>
+                  <div>
+                    <h4 className="text-xl font-bold text-yellow-800">Menunggu Verifikasi Admin</h4>
+                    {formData.nomor_str ? (
+                      <p className="text-yellow-700 mt-1 text-sm">
+                        Dokumen STR Anda sedang dalam antrean pengecekan. Mohon bersabar.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-yellow-700 mt-1 text-sm">
+                          Pengajuan perubahan instansi sedang menunggu persetujuan admin.
+                        </p>
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <span className="text-yellow-600">Instansi aktif:</span>
+                          <span className="font-semibold text-yellow-800">{formData.instansi || "-"}</span>
+                          <span className="text-yellow-400">→</span>
+                          <span className="text-yellow-600">Diajukan:</span>
+                          <span className="font-semibold text-blue-700">{formData.instansi_baru || "-"}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -328,9 +409,12 @@ export default function DataPersonal() {
                   <div className="flex items-start gap-4 flex-1">
                     <div className="w-12 h-12 mt-1 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-xl flex-shrink-0">⚠️</div>
                     <div>
-                      <h4 className="text-xl font-bold text-red-800">Pengajuan Akses Ditolak</h4>
+                      <h4 className="text-xl font-bold text-red-800">Pengajuan Ditolak</h4>
                       <p className="text-red-700 mt-1 leading-relaxed text-sm">
-                        Maaf, pengajuan dokumen STR Anda ditolak oleh Admin karena dokumen terindikasi tidak valid atau buram. Anda dapat mencoba mengajukan ulang atau mengabaikan pesan ini.
+                        {formData.nomor_str
+                          ? "Maaf, pengajuan dokumen STR Anda ditolak oleh Admin karena dokumen terindikasi tidak valid atau buram. Anda dapat mencoba mengajukan ulang atau membatalkan pengajuan."
+                          : "Maaf, pengajuan perubahan instansi Anda ditolak oleh Admin. Instansi Anda tetap seperti sebelumnya. Anda bisa mencoba mengajukan ulang jika diperlukan."
+                        }
                       </p>
                     </div>
                   </div>
@@ -374,7 +458,7 @@ export default function DataPersonal() {
                   <label className="text-sm font-semibold text-gray-700 block mb-2">Upload Dokumen Pendukung (STR / SIP Aktif)</label>
                   <label className="block">
                     <div className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${doctorRequest.dokumen ? 'border-green-500 bg-green-50' : 'border-primary-30 hover:bg-primary-10/50'}`}>
-                      {doctorRequest.dokumen ? (<div><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">✓</div><p className="text-green-800 font-bold break-all">{doctorRequest.dokumen.name}</p></div>) : (<div><div className="w-12 h-12 bg-primary-10 text-primary-50 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">📄</div><p className="text-primary-50 font-bold text-lg">Pilih Dokumen</p><p className="text-sm text-gray-500 mt-2">Mendukung PDF, JPG, atau PNG (Max. 5MB)</p></div>)}
+                      {doctorRequest.dokumen ? (<div><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl"><CheckCircle className="w-6 h-6" /></div><p className="text-green-800 font-bold break-all">{doctorRequest.dokumen.name}</p></div>) : (<div><div className="w-12 h-12 bg-primary-10 text-primary-50 rounded-full flex items-center justify-center mx-auto mb-3 text-xl"><FileText className="w-6 h-6" /></div><p className="text-primary-50 font-bold text-lg">Pilih Dokumen</p><p className="text-sm text-gray-500 mt-2">Mendukung PDF, JPG, atau PNG (Max. 5MB)</p></div>)}
                     </div>
                     <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDoctorFile} />
                   </label>
@@ -430,13 +514,98 @@ export default function DataPersonal() {
           </div>
         )}
 
+        {/* MODAL GANTI INSTANSI */}
+        {isEditInstansiOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-extrabold text-dark-50">Ganti Instansi Bekerja</h3>
+                <button onClick={() => setIsEditInstansiOpen(false)} className="text-gray-400 hover:text-red-500 text-3xl font-bold leading-none w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 transition">&times;</button>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <p className="text-yellow-800 text-sm font-semibold mb-1"> <AlertTriangle className="w-6 h-6" /> Perlu Verifikasi Ulang</p>
+                <p className="text-yellow-700 text-xs leading-relaxed">
+                  Perubahan instansi memerlukan persetujuan admin. Status akun Anda akan berubah menjadi <strong>Menunggu Verifikasi</strong> hingga admin menyetujui.
+                </p>
+              </div>
+
+              <div className="space-y-5 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Instansi Baru</label>
+                <input
+                  type="text"
+                  value={newInstansi}
+                  onChange={(e) => setNewInstansi(e.target.value)}
+                  placeholder="Contoh: RSUD Harapan Baru"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-40 focus:ring-2 focus:ring-primary-10 transition text-sm"
+                />
+                {formData.instansi && (
+                  <p className="text-xs text-gray-400 mt-2">Instansi sebelumnya: <span className="font-medium">{formData.instansi}</span></p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                  Upload SIP (Surat Izin Praktik) Instansi Baru <span className="text-red-500">*</span>
+                </label>
+                <label className="block cursor-pointer">
+                  <div className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all ${
+                    dokumenSIP ? 'border-green-500 bg-green-50' : 'border-primary-30 hover:bg-primary-10/50'
+                  }`}>
+                    {dokumenSIP ? (
+                      <div>
+                        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2 text-lg"><CheckCircle className="w-6 h-6" /></div>
+                        <p className="text-green-800 font-bold text-sm break-all">{dokumenSIP.name}</p>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setDokumenSIP(null); }}
+                          className="text-xs text-red-500 mt-1 hover:underline"
+                        >
+                          Hapus file
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="w-10 h-10 bg-primary-10 text-primary-50 rounded-full flex items-center justify-center mx-auto mb-2 text-lg"><FileText className="w-6 h-6" /></div>
+                        <p className="text-primary-50 font-bold text-sm">Pilih Dokumen SIP</p>
+                        <p className="text-xs text-gray-400 mt-1">PDF, JPG, atau PNG (Max. 5MB)</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => { const file = e.target.files[0]; if (file) setDokumenSIP(file); }}
+                  />
+                </label>
+              </div>
+            </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setIsEditInstansiOpen(false); setNewInstansi(""); setDokumenSIP(null); }}
+                  className="flex-1 px-6 py-3.5 rounded-xl text-gray-600 bg-gray-100 hover:bg-gray-200 font-bold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSubmitGantiInstansi}
+                  disabled={isSubmittingInstansi || !newInstansi.trim() || newInstansi.trim() === formData.instansi || !dokumenSIP}
+                  className="flex-1 px-6 py-3.5 rounded-xl text-white bg-primary-40 hover:bg-primary-50 font-bold transition shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingInstansi ? "Mengirim..." : "Ajukan Perubahan"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </MainLayout>
     );
   }
 
-  // ==========================================
-  // EDIT MODE (Murni untuk Data Personal)
-  // ==========================================
   return (
     <MainLayout>
       <div className="max-w-5xl mx-auto px-4 mt-16 pb-20 relative">

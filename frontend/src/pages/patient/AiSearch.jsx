@@ -4,6 +4,7 @@ import MainLayout from "../../layouts/MainLayout";
 import SelectField from "../../components/SelectField";
 import MultiSelectField from "../../components/MultiSelectField";
 import ResultSection from "../../components/ResultSection";
+import { FileText, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 
 export default function AiSearch() {
   const location = useLocation();
@@ -23,12 +24,12 @@ export default function AiSearch() {
   const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui", "Anak di bawah lima tahun"];
   const chemicalDrugOptions = ["Tidak", "Ya"];
 
-  // Menangkap data yang dilempar dari CatatanDokter.jsx
+  const [isFromDoctor, setIsFromDoctor] = useState(false);
+
   useEffect(() => {
     if (location.state && location.state.useSbertMode) {
       setPromptText(location.state.sbertQuery || "");
-      
-      // Menyesuaikan kondisi khusus dari database ke format dropdown
+      setIsFromDoctor(true);
       if (location.state.kondisiKhusus) {
         setSelectedCondition([location.state.kondisiKhusus]);
       } else {
@@ -118,15 +119,23 @@ export default function AiSearch() {
             
             <div className="mb-8">
               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">
-                <span className="text-indigo-500 text-lg">📝</span> Deskripsi Klinis & Gejala
+                <FileText size={16} className="text-indigo-500" /> Deskripsi Klinis & Gejala
               </label>
               <textarea
                 value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                placeholder="Ceritakan keluhan Anda di sini (contoh: Saya mengalami nyeri sendi, demam, dan didiagnosis asam urat...)"
-                className="w-full p-5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 outline-none transition text-gray-700 leading-relaxed min-h-[150px] resize-y"
+                onChange={isFromDoctor ? undefined : (e) => setPromptText(e.target.value)}
+                readOnly={isFromDoctor}
+                className={`w-full p-5 border rounded-2xl outline-none transition text-gray-700 leading-relaxed min-h-[150px]
+                  ${isFromDoctor
+                    ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed resize-none"
+                    : "bg-gray-50 border-gray-200 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 resize-y"
+                  }`}
               />
-              <p className="text-xs text-gray-400 mt-2 ml-1">Teks di atas ditarik secara otomatis dari Catatan Dokter Anda, namun Anda dapat menambahkannya secara manual.</p>
+              <p className="text-xs text-gray-400 mt-2 ml-1">
+                {isFromDoctor
+                  ? "Data ini berasal dari catatan dokter Anda dan tidak dapat diubah."
+                  : "Ceritakan keluhan Anda untuk dianalisis oleh sistem AI."}
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 border-t border-gray-100 pt-8">
@@ -136,7 +145,7 @@ export default function AiSearch() {
 
             {errorMessage && (
               <div className="mb-8 p-5 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-4">
-                <div className="text-red-500 text-xl">⚠️</div>
+                <AlertTriangle size={20} className="text-danger-30 flex-shrink-0 mt-0.5" />
                 <div><h4 className="font-bold text-red-800 text-sm mb-1">{errorMessage.type}</h4><p className="text-sm text-red-600">{errorMessage.text}</p></div>
               </div>
             )}
@@ -154,9 +163,9 @@ export default function AiSearch() {
                 className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-10 py-4 rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
-                  <span className="flex items-center gap-2">⏳ Memproses AI...</span>
+                  <><Loader2 size={16} className="animate-spin" /> Memproses AI...</>
                 ) : (
-                  <span className="flex items-center gap-2">✨ Analisis dengan AI</span>
+                  <><Sparkles size={16} /> Analisis dengan AI</>
                 )}
               </button>
             </div>

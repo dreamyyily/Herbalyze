@@ -49,6 +49,8 @@ def migrate_users_table():
             ("jenis_kelamin", "VARCHAR(20)"),
             ("alergi_herbal", "JSON"),
             ("foto_profil",   "TEXT"),
+            ("instansi_lama", "VARCHAR(255)"),
+            ("instansi_baru", "VARCHAR(255)"),
         ]
 
         for nama_kolom, tipe in kolom_lama + kolom_baru:

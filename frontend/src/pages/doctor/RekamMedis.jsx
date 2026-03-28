@@ -284,6 +284,7 @@ export default function RekamMedis() {
 
   const handleAddFromPatient = (wallet) => {
     setPatientWallet(wallet);
+    setFormData({ diagnosis: "", gejala: "", obat: "", kondisiKhusus: "", catatanTambahan: "" });
     setIsFormOpen(true);
     setActiveTab("rekam");
   };
