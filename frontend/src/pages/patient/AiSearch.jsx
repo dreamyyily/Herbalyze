@@ -21,7 +21,7 @@ export default function AiSearch() {
   const [recommendations, setRecommendations] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui", "Anak di bawah lima tahun"];
+  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui"];
   const chemicalDrugOptions = ["Tidak", "Ya"];
 
   const [isFromDoctor, setIsFromDoctor] = useState(false);
@@ -39,13 +39,17 @@ export default function AiSearch() {
   }, [location]);
 
   const handleConditionChange = (newArray) => {
-    const exclusive = ["Tidak ada", "Anak di bawah lima tahun"];
-    const lastClicked = newArray.find((item) => !selectedCondition.includes(item)) || selectedCondition.find((item) => !newArray.includes(item));
+    const lastClicked = newArray.find((item) => !selectedCondition.includes(item)) 
+      || selectedCondition.find((item) => !newArray.includes(item));
 
     if (!lastClicked) { setSelectedCondition(newArray); return; }
-    if (exclusive.includes(lastClicked)) { setSelectedCondition([lastClicked]); return; }
 
-    let cleaned = newArray.filter((item) => !exclusive.includes(item));
+    if (lastClicked === "Tidak ada") {
+      setSelectedCondition(["Tidak ada"]);
+      return;
+    }
+
+    const cleaned = newArray.filter((item) => item !== "Tidak ada");
     setSelectedCondition(cleaned);
   };
 
@@ -114,7 +118,7 @@ export default function AiSearch() {
         </div>
 
         {/* Formulir SBERT */}
-        <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100">
           <div className="p-8 md:p-10">
             
             <div className="mb-8">

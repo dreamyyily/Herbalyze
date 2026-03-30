@@ -51,6 +51,44 @@ def upload_to_ipfs(file):
     cid = response.json()["IpfsHash"]
     return cid
 
+def get_user_allergies(wallet_address: str, db: Session) -> set:
+    """Ambil daftar alergi herbal user dari DB, kembalikan sebagai set nama herbal lowercase."""
+    if not wallet_address or wallet_address == "guest_user":
+        return set()
+    try:
+        user = db.query(User).filter(
+            func.lower(User.wallet_address) == wallet_address.lower()
+        ).first()
+        if not user or not user.alergi_herbal:
+            return set()
+        allergies = user.alergi_herbal
+        if isinstance(allergies, str):
+            import json as _json
+            allergies = _json.loads(allergies)
+        # Bersihkan format "Nama (alias)" → ambil bagian sebelum kurung
+        result = set()
+        for a in allergies:
+            if a and a.lower() != "tidak ada":
+                clean = a.split("(")[0].strip().lower()
+                result.add(clean)
+        return result
+    except Exception as e:
+        print(f"⚠️ Gagal ambil alergi user: {e}")
+        return set()
+
+def filter_allergies(herbs: list, allergies: set) -> list:
+    """Filter list herbal, hapus yang namanya ada di daftar alergi user."""
+    if not allergies:
+        return herbs
+    filtered = []
+    for herb in herbs:
+        herb_name_clean = herb.get("name", "").split("(")[0].strip().lower()
+        if herb_name_clean not in allergies:
+            filtered.append(herb)
+        else:
+            print(f"⚠️ [ALERGI] Herbal '{herb.get('name')}' dieliminasi karena user alergi.")
+    return filtered
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -593,18 +631,20 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         all_diags = db.execute(text("SELECT diagnosis, herbal_name FROM herbal_diagnoses")).fetchall()
         all_symps = db.execute(text("SELECT symptom, herbal_name FROM herbal_symptoms")).fetchall()
 
+        user_allergies = get_user_allergies(wallet_addr, db)
+        
         for d in sel_diag:
             found = {r[1] for r in all_diags if r[0] and r[0].strip() == d}
             safe = get_safe_herbs(found, sel_cond)
             if safe:
-                details = get_details(safe)
+                details = filter_allergies(get_details(safe), user_allergies)
                 if details: grouped_results.append({"group_type": "Diagnosis", "group_name": d, "herbs": details})
 
         for s in sel_symp:
             found = {r[1] for r in all_symps if r[0] and r[0].strip() == s}
             safe = get_safe_herbs(found, sel_cond)
             if safe:
-                details = get_details(safe)
+                details = filter_allergies(get_details(safe), user_allergies)
                 if details: grouped_results.append({"group_type": "Gejala", "group_name": s, "herbs": details})
 
         if grouped_results:
@@ -734,6 +774,10 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                 clean_chunks.append(temp)
 
         print(f"🧩 [NLP] Hasil Clean Chunks: {clean_chunks}")
+        
+        user_allergies = get_user_allergies(req.wallet_address, db)
+        if user_allergies:
+            print(f"⚠️ [ALERGI] User memiliki alergi: {user_allergies}")
 
         # --- 4. PROSES PENCARIAN (GROUPING SERAGAM) ---
         grouped_data = {} 
@@ -750,7 +794,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                 baku_name = chunk.strip().capitalize()
                 db_res = diag_db if diag_db else symp_db
                 safe = get_safe_herbs({row[0] for row in db_res}, sel_cond)
-                herbs_list = get_details(safe)
+                herbs_list = filter_allergies(get_details(safe), user_allergies)
                 
                 if herbs_list:
                     if baku_name not in grouped_data:
@@ -799,7 +843,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                         """), {"q": label_baku}).fetchall()
                         
                         safe_ai = get_safe_herbs({r[0] for r in ai_db}, sel_cond)
-                        herbs_ai_list = get_details(safe_ai)
+                        herbs_ai_list = filter_allergies(get_details(safe_ai), user_allergies)
                         
                         if herbs_ai_list:
                             if baku_cap not in grouped_data:

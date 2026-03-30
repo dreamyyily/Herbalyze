@@ -60,7 +60,7 @@ export default function RekamMedis() {
 
   const [activeTab, setActiveTab] = useState("pasien");
 
-  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui", "Anak di bawah lima tahun"];
+  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui"];
 
   const [consentedPatients, setConsentedPatients] = useState([]);
   const [patientProfiles, setPatientProfiles] = useState({});

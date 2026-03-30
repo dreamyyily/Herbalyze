@@ -27,7 +27,7 @@ export default function Home() {
   
   const resultRef = useRef(null);
 
-  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui", "Anak di bawah lima tahun"];
+  const specialConditionOptions = ["Tidak ada", "Ibu hamil", "Ibu menyusui"];
   const chemicalDrugOptions = ["Tidak", "Ya"];
 
   useEffect(() => {
@@ -93,13 +93,17 @@ export default function Home() {
   };
 
   const handleConditionChange = (newArray) => {
-    const exclusive = ["Tidak ada", "Anak di bawah lima tahun"];
-    const lastClicked = newArray.find((item) => !selectedCondition.includes(item)) || selectedCondition.find((item) => !newArray.includes(item));
+    const lastClicked = newArray.find((item) => !selectedCondition.includes(item)) 
+      || selectedCondition.find((item) => !newArray.includes(item));
 
     if (!lastClicked) { setSelectedCondition(newArray); return; }
-    if (exclusive.includes(lastClicked)) { setSelectedCondition([lastClicked]); return; }
 
-    let cleaned = newArray.filter((item) => !exclusive.includes(item));
+    if (lastClicked === "Tidak ada") {
+      setSelectedCondition(["Tidak ada"]);
+      return;
+    }
+
+    const cleaned = newArray.filter((item) => item !== "Tidak ada");
     setSelectedCondition(cleaned);
   };
 
@@ -173,7 +177,7 @@ export default function Home() {
         
         <HeroSection />
 
-        <div className="bg-white rounded-[32px] shadow-[0_20px_50px_rgba(37,99,235,0.07)] border border-primary-10 overflow-hidden relative backdrop-blur-sm mt-6">
+        <div className="bg-white rounded-[32px] shadow-[0_20px_50px_rgba(37,99,235,0.07)] border border-primary-10 relative backdrop-blur-sm mt-6">
           
           {/* Overlay Kunci */}
           {showProfileWarning && (
