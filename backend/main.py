@@ -812,97 +812,64 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                 chunks_to_ai.append(chunk)
         
         print(f"⏱️  Waktu Lapis 1 (SQL): {(time.time() - start_l1)*1000:.2f} ms")
+        
+        final_result_groups = []
 
         # --- 5. LAPIS 2: ANALISIS AI SBERT ---
         if chunks_to_ai:
             start_l2 = time.time()
-            print(f"\n🧠 [LAPIS 2] MEMULAI ANALISIS AI SBERT")
+            print(f"🧠 [LAPIS 2] Memulai analisis SBERT...")
             from sentence_transformers import SentenceTransformer
             import chromadb
             model_ai = SentenceTransformer('intfloat/multilingual-e5-small')
             chroma_client = chromadb.PersistentClient(path="./chroma_db")
             collection = chroma_client.get_collection(name="med_labels")
 
-            print(f"🧠 [LAPIS 2 - MODE RAG] Menganalisis Kamus Medis...")
             for chunk in chunks_to_ai:
+                print(f"   ➤ Menganalisis: '{chunk}'...")
                 cv = model_ai.encode([f"query: {chunk}"]).tolist()
                 sr = collection.query(query_embeddings=cv, n_results=1)
-                
+
                 if sr['distances'][0]:
                     similarity = (1 - sr['distances'][0][0]) * 100
                     label_baku = sr['metadatas'][0][0]['baku'].strip()
                     baku_cap = label_baku.capitalize()
-                    
-                    print(f"   ➤ AI RAG: '{chunk}' ⮕ '{label_baku}' ({similarity:.2f}%)")
-                    
+
+                    print(f"      🤖 '{chunk}' ⮕ '{label_baku}' ({similarity:.2f}%)")
+
                     if similarity >= 88.0:
+                        print(f"      ✅ Diterima. Mapping ke database...")
+                        is_diag = db.execute(
+                            text("SELECT 1 FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"),
+                            {"q": label_baku}
+                        ).first()
+
                         ai_db = db.execute(text("""
-                            SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q) 
-                            UNION 
+                            SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)
+                            UNION
                             SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE TRIM(:q)
                         """), {"q": label_baku}).fetchall()
-                        
+
                         safe_ai = get_safe_herbs({r[0] for r in ai_db}, sel_cond)
                         herbs_ai_list = filter_allergies(get_details(safe_ai), user_allergies)
-                        
+
                         if herbs_ai_list:
                             if baku_cap not in grouped_data:
-                                is_diag = db.execute(text("SELECT 1 FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": label_baku}).first()
                                 grouped_data[baku_cap] = {
-                                    "group_type": "Diagnosis" if is_diag else "Gejala", 
-                                    "group_name": baku_cap, 
+                                    "group_type": "Diagnosis" if is_diag else "Gejala",
+                                    "group_name": baku_cap,
                                     "herbs": herbs_ai_list,
                                     "detected_from_list": [chunk]
                                 }
                             else:
                                 if chunk not in grouped_data[baku_cap]["detected_from_list"]:
                                     grouped_data[baku_cap]["detected_from_list"].append(chunk)
-            
-            print(f"⏱️  Waktu Lapis 2 (AI/SBERT): {(time.time() - start_l2)*1000:.2f} ms")
-            
-            
-            # --- MODE B: PURE SBERT ---
-            # print(f"⚠️  [MODE] Lapis 2 menggunakan SBERT (Direct Knowledge Search)...")
-            # collection = chroma_client.get_collection(name="med_labels")
-            # for chunk in chunks_to_ai:
-            #     print(f"   ➤ AI sedang menganalisis makna: '{chunk}'...")
-            #     cv = model_ai.encode([f"query: {chunk}"]).tolist()
-            #     sr = collection.query(query_embeddings=cv, n_results=1)
-            #     
-            #     if sr['distances'][0]:
-            #         distance = sr['distances'][0][0]
-            #         similarity = (1 - distance) * 100
-            #         label_baku = sr['metadatas'][0][0]['baku']
-            #         
-            #         print(f"      🤖 [AI RESULT] '{chunk}' mirip dengan '{label_baku}' (Skor: {similarity:.2f}%)")
-            #         
-            #         if similarity >= 88.0:
-            #             print(f"      ✅ [DITERIMA] Skor di atas 88%. Melakukan mapping ke database.")
-            #             is_diag = db.execute(text("SELECT 1 FROM herbal_diagnoses WHERE diagnosis = :q"), {"q": label_baku}).first()
-            #             
-            #             ai_db = db.execute(text("""
-            #                 SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE :q 
-            #                 UNION 
-            #                 SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE :q
-            #             """), {"q": label_baku}).fetchall()
-            #             safe_ai = get_safe_herbs({r[0] for r in ai_db}, sel_cond)
-            #             
-            #             final_result_groups.append({
-            #                 "group_type": "Diagnosis" if is_diag else "Gejala",
-            #                 "group_name": label_baku, 
-            #                 "mapping_info": f"Sistem mengenali keluhan '{chunk}' Anda sebagai '{label_baku}'",
-            #                 "herbs": get_details(safe_ai)
-            #             })
-            #         else:
-            #             print(f"      ⚠️  [REJECT] Skor terlalu rendah. AI tidak yakin.")
-            
-        
-            # end_l2 = (time.time() - start_l2) * 1000
-            # print(f"⏱️  Waktu Lapis 2 (AI/SBERT): {end_l2:.2f} ms")
+                    else:
+                        print(f"      ⚠️ Skor terlalu rendah. Dilewati.")
 
-        # --- 6. FINAL CONSOLIDATION (PENYERAGAMAN FORMAT 100%) ---
-        final_result_groups = []
-        
+            print(f"⏱️  Waktu Lapis 2 (SBERT): {(time.time() - start_l2)*1000:.2f} ms")
+
+        # --- 6. FINAL CONSOLIDATION ---
         for name, data in grouped_data.items():
             sources = data["detected_from_list"]
             

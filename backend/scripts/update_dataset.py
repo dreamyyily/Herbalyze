@@ -129,7 +129,7 @@ def seed_postgresql():
                     df['sinonim_awam'] = df['sinonim_awam'].astype(str)
                     
                     # Pecah kolom sinonim_awam berdasarkan newline menjadi list
-                    df['sinonim_awam'] = df['sinonim_awam'].apply(lambda x: x.split('\n'))
+                    df['sinonim_awam'] = df['sinonim_awam'].str.split('\n')
                     
                     # Gunakan fungsi explode
                     df = df.explode('sinonim_awam')
@@ -138,7 +138,7 @@ def seed_postgresql():
                     df['sinonim_awam'] = df['sinonim_awam'].str.strip()
                     
                     # Hapus baris yang kosong atau "nan"
-                    df = df[~df['sinonim_awam'].isin(["", "nan", "None"])]
+                    df = df[~df['sinonim_awam'].isin(["", "nan", "None", "NaN"])]
             else:
                 # Untuk tabel Herbal Gejala & Diagnosis, bersihkan juga kolom kuncinya
                 df = df.rename(columns=info['mapping'])
@@ -243,60 +243,97 @@ def rebuild_chromadb():
         print(f"[GAGAL] Rebuild ChromaDB gagal: {e}")
         return False
 
-def rebuild_kamus_medis_chromadb():
+def rebuild_kamus_medis_chromadb(mode="pure_sbert"):
+    """
+    mode="pure_sbert" → hanya label dari tabel diagnosis & gejala
+    mode="rag"        → label diagnosis & gejala + sinonim dari kamus_medis
+    """
     print("\n" + "="*55)
-    print("STEP 5 - REBUILD KAMUS MEDIS (MED_LABELS) DI CHROMADB")
+    print(f"STEP 5 - REBUILD MED_LABELS (MODE: {mode.upper()})")
     print("="*55)
     try:
         from sentence_transformers import SentenceTransformer
         import chromadb
         engine = create_engine(DATABASE_URL)
-        
-        # Ambil label unik dari database utama (Diagnosis & Gejala)
-        query_dasar = "SELECT DISTINCT diagnosis as label FROM herbal_diagnoses WHERE diagnosis != '' UNION SELECT DISTINCT symptom as label FROM herbal_symptoms WHERE symptom != ''"
-        # Ambil sinonim dari Kamus Medis yang baru saja di-seed
-        query_kamus = "SELECT istilah_baku, sinonim_awam FROM kamus_medis"
 
-        df_dasar = pd.read_sql_query(query_dasar, engine)
-        df_kamus = pd.read_sql_query(query_kamus, engine)
+        # Ambil label baku dari tabel utama (SELALU dipakai di kedua mode)
+        df_dasar = pd.read_sql_query("""
+            SELECT DISTINCT diagnosis as label FROM herbal_diagnoses WHERE diagnosis != ''
+            UNION
+            SELECT DISTINCT symptom as label FROM herbal_symptoms WHERE symptom != ''
+        """, engine)
 
         model = SentenceTransformer('intfloat/multilingual-e5-small')
         documents, metadatas, ids = [], [], []
-        
-        # 1. Daftarkan istilah baku dari dataset herbal
+
+        # Daftarkan label baku
         for idx, label in enumerate(df_dasar['label'].tolist()):
-            documents.append(label.lower())
-            metadatas.append({"baku": label})
+            documents.append(label.strip().lower())
+            metadatas.append({"baku": label.strip()})
             ids.append(f"db_{idx}")
 
-        # 2. Daftarkan sinonim awam dari kamus medis
-        for idx, row in df_kamus.iterrows():
-            documents.append(str(row['sinonim_awam']).lower())
-            metadatas.append({"baku": str(row['istilah_baku'])})
-            ids.append(f"syn_{idx}")
+        # Tambah sinonim dari kamus_medis HANYA jika mode RAG
+        if mode == "rag":
+            df_kamus = pd.read_sql_query(
+                "SELECT istilah_baku, sinonim_awam FROM kamus_medis", engine
+            )
+            for idx, row in df_kamus.iterrows():
+                documents.append(str(row['sinonim_awam']).lower())
+                metadatas.append({"baku": str(row['istilah_baku'])})
+                ids.append(f"syn_{idx}")
+            print(f"[INFO] Mode RAG: {len(df_dasar)} label baku + {len(df_kamus)} sinonim kamus")
+        else:
+            print(f"[INFO] Mode Pure SBERT: {len(df_dasar)} label baku saja (tanpa kamus sinonim)")
 
         texts = [f"query: {doc}" for doc in documents]
         embeddings = model.encode(texts, show_progress_bar=True).tolist()
 
         chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-        collection = chroma_client.get_or_create_collection(name="med_labels", metadata={"hnsw:space": "cosine"})
-        collection.add(documents=documents, embeddings=embeddings, metadatas=metadatas, ids=ids)
         
-        print(f"[OK] Kamus Medis Rebuilt: {collection.count()} entri.")
+        # Hapus collection lama kalau ada, biar fresh
+        try:
+            chroma_client.delete_collection(name="med_labels")
+            print("[OK] Collection med_labels lama dihapus")
+        except:
+            pass
+        
+        collection = chroma_client.get_or_create_collection(
+            name="med_labels", 
+            metadata={"hnsw:space": "cosine"}
+        )
+        collection.add(
+            documents=documents, 
+            embeddings=embeddings, 
+            metadatas=metadatas, 
+            ids=ids
+        )
+
+        print(f"[OK] med_labels berhasil dibangun: {collection.count()} entri.")
         return True
     except Exception as e:
-        print(f"Gagal Rebuild Kamus: {e}")
+        print(f"[GAGAL] Rebuild Kamus: {e}")
         return False
 
 if __name__ == "__main__":
     print("="*55)
-    print("  HERBALYZE - UPDATE DATASET DENGAN KAMUS MEDIS")
+    print("  HERBALYZE - UPDATE DATASET")
     print("="*55)
-    if not seed_postgresql(): sys.exit(1)
+
+    # ✅ GANTI DI SINI untuk memilih mode
+    # "pure_sbert" → hanya label baku dari diagnosis & gejala
+    # "rag"        → label baku + sinonim kamus medis
+    ACTIVE_MODE = "pure_sbert"  # Ubah ke "rag" jika ingin mode RAG dengan sinonim kamus
+
+    print(f"\n🔧 Mode aktif: {ACTIVE_MODE.upper()}")
+
+    if not seed_postgresql():
+        sys.exit(1)
+
     reset_chromadb()
     ok_herbal = rebuild_chromadb()
-    ok_kamus = rebuild_kamus_medis_chromadb()
+    ok_kamus = rebuild_kamus_medis_chromadb(mode=ACTIVE_MODE)
+
     if ok_herbal and ok_kamus:
-        print("\n✅ SELESAI! Kamus Medis kini aktif.")
+        print(f"\n✅ SELESAI! Mode {ACTIVE_MODE} aktif.")
     else:
         print("\n⚠️ Selesai dengan catatan error.")
