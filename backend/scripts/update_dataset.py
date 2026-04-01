@@ -322,7 +322,7 @@ if __name__ == "__main__":
     # ✅ GANTI DI SINI untuk memilih mode
     # "pure_sbert" → hanya label baku dari diagnosis & gejala
     # "rag"        → label baku + sinonim kamus medis
-    ACTIVE_MODE = "pure_sbert"  # Ubah ke "rag" jika ingin mode RAG dengan sinonim kamus
+    ACTIVE_MODE = "rag"  # Ubah ke "rag" jika ingin mode RAG dengan sinonim kamus
 
     print(f"\n🔧 Mode aktif: {ACTIVE_MODE.upper()}")
 

@@ -65,28 +65,53 @@ def get_user_allergies(wallet_address: str, db: Session) -> set:
         if isinstance(allergies, str):
             import json as _json
             allergies = _json.loads(allergies)
-        # Bersihkan format "Nama (alias)" → ambil bagian sebelum kurung
+
         result = set()
         for a in allergies:
             if a and a.lower() != "tidak ada":
-                clean = a.split("(")[0].strip().lower()
-                result.add(clean)
-        return result
+                for line in str(a).replace("\r", "").split("\n"):
+                    clean = line.split("(")[0].strip().lower()
+                    if clean:
+                        result.add(clean)
+        return result   # ← HARUS DI DALAM try, bukan di luar
     except Exception as e:
         print(f"⚠️ Gagal ambil alergi user: {e}")
         return set()
 
 def filter_allergies(herbs: list, allergies: set) -> list:
-    """Filter list herbal, hapus yang namanya ada di daftar alergi user."""
+    """
+    Rule-Based Filter: Menyaring herbal berdasarkan riwayat alergi personal user.
+    Menangani format nama herbal multi-baris (dipisah newline) dan alias dalam kurung.
+    """
+    if not herbs:
+        return []
     if not allergies:
         return herbs
+
+    # Normalisasi alergi: ambil bagian sebelum kurung, lowercase, strip
+    clean_allergies = {str(a).split("(")[0].strip().lower() for a in allergies}
+
     filtered = []
     for herb in herbs:
-        herb_name_clean = herb.get("name", "").split("(")[0].strip().lower()
-        if herb_name_clean not in allergies:
-            filtered.append(herb)
+        raw_name = herb.get("name", "")
+        
+        # ✅ PERBAIKAN: nama herbal bisa multi-baris (dipisah \n)
+        # Ambil SEMUA baris sebagai kandidat nama, cek satu per satu
+        name_variants = [
+            line.split("(")[0].strip().lower()
+            for line in raw_name.replace("\r", "").split("\n")
+            if line.strip()
+        ]
+        
+        # Herbal dieliminasi jika SALAH SATU variannya ada di daftar alergi
+        is_allergic = any(variant in clean_allergies for variant in name_variants)
+        
+        if is_allergic:
+            matched = [v for v in name_variants if v in clean_allergies]
+            print(f"🚫 [ALERGI-FILTER] '{raw_name.splitlines()[0]}' DIELIMINASI → nama '{matched[0]}' cocok dengan alergi user.")
         else:
-            print(f"⚠️ [ALERGI] Herbal '{herb.get('name')}' dieliminasi karena user alergi.")
+            filtered.append(herb)
+
     return filtered
 
 Base.metadata.create_all(bind=engine)
@@ -585,9 +610,16 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         raw_cond = data.get('kondisi', [])
         obat_kimia = data.get('obat_kimia', [])
 
+        # --- LOG START ---
+        print(f"\n{'='*70}")
+        print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI EXACT MATCHING (SQL)")
+        print(f"📥 Input Diagnosis   : {sel_diag}")
+        print(f"📥 Input Gejala      : {sel_symp}")
+        print(f"{'='*70}")
+
         condition_mapping = {
-            "Ibu hamil": "hamil",
-            "Ibu menyusui": "menyusui",
+            "Ibu hamil": "Hamil",
+            "Ibu menyusui": "Menyusui",
             "Anak di bawah lima tahun": "anak di bawah 5 tahun"
         }
         sel_cond = [condition_mapping.get(c, c) for c in raw_cond if c != "Tidak ada"]
@@ -596,17 +628,39 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
             child_cond = "anak di bawah 5 tahun"
             if child_cond not in sel_cond:
                 sel_cond.append(child_cond)
-                print(f"👶 [AUTO] User {wallet_addr} terdeteksi berusia <5 tahun, kondisi '{child_cond}' ditambahkan otomatis.")
+                print(f"👶 [RBS-AUTO] User {wallet_addr} terdeteksi berusia <5 tahun, kondisi '{child_cond}' ditambahkan otomatis.")
 
+        user_allergies = get_user_allergies(wallet_addr, db)
+        print(f"⚙️  [PRE-PROCESS] Kondisi pasien: {sel_cond if sel_cond else 'Normal'}")
+        print(f"⚠️  [ALERGI] Daftar Alergi: {user_allergies if user_allergies else 'Tidak ada'}")
+
+        # --- HELPER FUNCTIONS DENGAN LOGGING ---
         def get_safe_herbs(herb_names, conditions):
-            if not herb_names or not conditions: return list(herb_names)
+            if not herb_names: return []
+            if not conditions: return list(herb_names)
+            
             result = db.execute(text("""
-                SELECT herbal_name FROM herbal_special_conditions 
+                SELECT herbal_name, special_condition FROM herbal_special_conditions 
                 WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
             """), {"names": list(herb_names), "conds": list(conditions)}).fetchall()
-            unsafe = {row[0] for row in result}
-            return [h for h in herb_names if h not in unsafe]
+            
+            unsafe_reasons = {}
+            for row in result:
+                herb, cond = row[0], row[1]
+                if herb not in unsafe_reasons:
+                    unsafe_reasons[herb] = []
+                unsafe_reasons[herb].append(cond)
+            
+            safe_herbs = []
+            for h in herb_names:
+                if h in unsafe_reasons:
+                    alasan = ", ".join(unsafe_reasons[h])
+                    print(f"      🛑 {h} → DIELIMINASI (berbahaya bagi: {alasan})")
+                else:
+                    safe_herbs.append(h)
+            return safe_herbs
 
+    
         def get_details(herb_names):
             if not herb_names: return []
             result = db.execute(text("""
@@ -627,25 +681,100 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
                     seen.add(r[0])
             return res
 
+       # --- PROSES PENCARIAN DENGAN LOG DETAIL ELIMINASI ---
         grouped_results = []
         all_diags = db.execute(text("SELECT diagnosis, herbal_name FROM herbal_diagnoses")).fetchall()
         all_symps = db.execute(text("SELECT symptom, herbal_name FROM herbal_symptoms")).fetchall()
 
-        user_allergies = get_user_allergies(wallet_addr, db)
-        
+        # --- LOOP DIAGNOSIS ---
         for d in sel_diag:
+            print(f"\n🔍 [SQL] Mencari: '{d}'")
             found = {r[1] for r in all_diags if r[0] and r[0].strip() == d}
-            safe = get_safe_herbs(found, sel_cond)
-            if safe:
-                details = filter_allergies(get_details(safe), user_allergies)
-                if details: grouped_results.append({"group_type": "Diagnosis", "group_name": d, "herbs": details})
+            
+            if not found:
+                print(f"   ❌ Tidak ada data di database untuk '{d}'.")
+                continue
 
-        for s in sel_symp:
-            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s}
+            print(f"   📋 Total herbal ditemukan: {len(found)}")
+            print(f"   {'─'*50}")
+
+            # 1. Filter Kondisi Khusus
+            if sel_cond:
+                print(f"   🔎 Filter Kondisi Khusus ({', '.join(sel_cond)}):")
             safe = get_safe_herbs(found, sel_cond)
-            if safe:
-                details = filter_allergies(get_details(safe), user_allergies)
-                if details: grouped_results.append({"group_type": "Gejala", "group_name": s, "herbs": details})
+            count_rbs_eliminated = len(found) - len(safe)
+            if count_rbs_eliminated == 0:
+                print(f"      ✅ Tidak ada yang dieliminasi kondisi khusus")
+
+            # 2. Filter Alergi
+            details_before_allergy = get_details(safe)
+            if user_allergies:
+                print(f"   🔎 Filter Alergi ({', '.join(user_allergies)}):")
+            details = filter_allergies(details_before_allergy, user_allergies)
+            count_allergy_eliminated = len(details_before_allergy) - len(details)
+            if count_allergy_eliminated == 0 and user_allergies:
+                print(f"      ✅ Tidak ada yang dieliminasi karena alergi")
+
+            # Herbal yang lolos — list nama-namanya
+            print(f"   {'─'*50}")
+            print(f"   📊 [RINGKASAN '{d}']")
+            print(f"      Total awal            : {len(found)} herbal")
+            print(f"      🛑 Eliminasi kondisi  : {count_rbs_eliminated} herbal")
+            print(f"      🚫 Eliminasi alergi   : {count_allergy_eliminated} herbal")
+            print(f"      ✅ Lolos & ditampilkan: {len(details)} herbal")
+            if details:
+                lolos_names = ", ".join([h['name'].splitlines()[0] for h in details])
+                print(f"      📌 Herbal aman       : {lolos_names}")
+
+            if details:
+                grouped_results.append({"group_type": "Diagnosis", "group_name": d, "herbs": details})
+            else:
+                print(f"   ⚠️ Semua herbal dieliminasi, '{d}' tidak ditampilkan.")
+
+        # --- LOOP GEJALA ---
+        for s in sel_symp:
+            print(f"\n🔍 [SQL] Mencari: '{s}'")
+            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s}
+            
+            if not found:
+                print(f"   ❌ Tidak ada data di database untuk '{s}'.")
+                continue
+
+            print(f"   📋 Total herbal ditemukan: {len(found)}")
+            print(f"   {'─'*50}")
+
+            if sel_cond:
+                print(f"   🔎 Filter Kondisi Khusus ({', '.join(sel_cond)}):")
+            safe = get_safe_herbs(found, sel_cond)
+            count_rbs_eliminated = len(found) - len(safe)
+            if count_rbs_eliminated == 0:
+                print(f"      ✅ Tidak ada yang dieliminasi kondisi khusus")
+
+            details_before_allergy = get_details(safe)
+            if user_allergies:
+                print(f"   🔎 Filter Alergi ({', '.join(user_allergies)}):")
+            details = filter_allergies(details_before_allergy, user_allergies)
+            count_allergy_eliminated = len(details_before_allergy) - len(details)
+            if count_allergy_eliminated == 0 and user_allergies:
+                print(f"      ✅ Tidak ada yang dieliminasi karena alergi")
+
+            print(f"   {'─'*50}")
+            print(f"   📊 [RINGKASAN '{s}']")
+            print(f"      Total awal            : {len(found)} herbal")
+            print(f"      🛑 Eliminasi kondisi  : {count_rbs_eliminated} herbal")
+            print(f"      🚫 Eliminasi alergi   : {count_allergy_eliminated} herbal")
+            print(f"      ✅ Lolos & ditampilkan: {len(details)} herbal")
+            if details:
+                lolos_names = ", ".join([h['name'].splitlines()[0] for h in details])
+                print(f"      📌 Herbal aman       : {lolos_names}")
+
+            if details:
+                grouped_results.append({"group_type": "Gejala", "group_name": s, "herbs": details})
+            else:
+                print(f"   ⚠️ Semua herbal dieliminasi, '{s}' tidak ditampilkan.")
+        # --- SELESAI ---
+        print(f"\n✨ [FINISH] Analisis selesai. Ditemukan {len(grouped_results)} kategori.")
+        print(f"{'='*70}\n")
 
         if grouped_results:
             try:
@@ -662,16 +791,16 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
                     "res": json.dumps(grouped_results)
                 })
                 db.commit()
-                print(f"✅ Riwayat disimpan: {wallet_addr}")
+                print(f"💾 [HISTORY] Riwayat disimpan untuk: {wallet_addr}")
             except Exception as e:
                 db.rollback()
-                print(f"⚠️ Gagal simpan riwayat: {e}")
+                print(f"⚠️ [HISTORY] Gagal simpan riwayat: {e}")
 
         return grouped_results
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 # Class request terpisah agar rapi
 class HybridRequest(BaseModel):
     wallet_address: str
@@ -681,22 +810,20 @@ class HybridRequest(BaseModel):
     
 @app.post("/api/recommend_hybrid")
 async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
-    start_total = time.time() # ⏱️ Start timer total backend
+    start_total = time.time()
     print(f"\n{'='*70}")
-    print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI HYBRID")
-    print(f"📥 Input Teks      : '{req.query_text}'")
+    print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI HYBRID (SQL + SBERT)")
+    print(f"📥 Input Teks : '{req.query_text}'")
     print(f"{'='*70}")
-    
+
     try:
-        # --- 1. PRE-PROCESSING DASAR ---
         query_clean = req.query_text.strip().lower()
         if not query_clean:
-            print("⚠️ [!] Input kosong, proses dihentikan.")
             raise HTTPException(status_code=400, detail="Teks keluhan kosong")
 
         condition_mapping = {
-            "Ibu hamil": "hamil",
-            "Ibu menyusui": "menyusui",
+            "Ibu hamil": "Hamil",
+            "Ibu menyusui": "Menyusui",
             "Anak di bawah lima tahun": "anak di bawah 5 tahun"
         }
         sel_cond = [condition_mapping.get(c, c) for c in req.kondisi if c != "Tidak ada"]
@@ -704,19 +831,43 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             child_cond = "anak di bawah 5 tahun"
             if child_cond not in sel_cond:
                 sel_cond.append(child_cond)
-                print(f"👶 [AUTO] User {req.wallet_address} terdeteksi berusia <5 tahun, kondisi '{child_cond}' ditambahkan otomatis.")
+                print(f"👶 [RBS-AUTO] Usia <5 tahun terdeteksi → kondisi '{child_cond}' ditambahkan.")
 
-        print(f"⚙️  [PRE-PROCESS] Kondisi pasien: {sel_cond if sel_cond else 'Normal'}")
+        # ✅ Ambil alergi SEKALI di sini, pakai terus ke bawah
+        user_allergies = get_user_allergies(req.wallet_address, db)
 
-        # --- 2. HELPER FUNCTIONS (WAJIB ADA DI SINI AGAR TIDAK NAMEERROR) ---
+        print(f"\n📋 [PRE-PROCESS SUMMARY]")
+        print(f"   Kondisi Khusus : {sel_cond if sel_cond else 'Tidak ada'}")
+        print(f"   Alergi User    : {user_allergies if user_allergies else 'Tidak ada'}")
+
+        # --- HELPER FUNCTIONS ---
         def get_safe_herbs(h_names, conditions):
-            if not h_names or not conditions: return list(h_names)
+            """RBS Filter 1: Eliminasi herbal berbahaya untuk kondisi khusus pasien."""
+            if not h_names: return []
+            if not conditions: return list(h_names)
+
             result_db = db.execute(text("""
-                SELECT herbal_name FROM herbal_special_conditions 
+                SELECT herbal_name, special_condition 
+                FROM herbal_special_conditions 
                 WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
             """), {"names": list(h_names), "conds": list(conditions)}).fetchall()
-            unsafe = {row[0] for row in result_db}
-            return [h for h in h_names if h not in unsafe]
+
+            # ✅ Kumpulkan semua kondisi per herbal (bisa lebih dari satu)
+            unsafe_reasons = {}
+            for row in result_db:
+                herb, cond = row[0], row[1]
+                if herb not in unsafe_reasons:
+                    unsafe_reasons[herb] = []
+                unsafe_reasons[herb].append(cond)
+
+            safe_herbs = []
+            for h in h_names:
+                if h in unsafe_reasons:
+                    alasan = ", ".join(unsafe_reasons[h])
+                    print(f"      🛑 {h} → DIELIMINASI (berbahaya bagi: {alasan})")
+                else:
+                    safe_herbs.append(h)
+            return safe_herbs
 
         def get_details(h_names):
             if not h_names: return []
@@ -737,6 +888,61 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                     seen.add(r[0])
             return res
 
+        def apply_all_filters(herb_names_set, label, conditions, allergies):
+            """
+            Wrapper: jalankan RBS kondisi + RBS alergi sekaligus, dengan log lengkap.
+            Mengembalikan list herbal final yang aman.
+            """
+            count_raw = len(herb_names_set)
+            print(f"\n   📋 [FILTER '{label}'] Total herbal ditemukan: {count_raw}")
+            print(f"   {'─'*50}")
+
+            # Filter 1: Kondisi Khusus
+            if conditions:
+                print(f"   🔎 Filter Kondisi Khusus ({', '.join(conditions)}):")
+            safe = get_safe_herbs(herb_names_set, conditions)
+            count_rbs_eliminated = count_raw - len(safe)
+            if count_rbs_eliminated == 0:
+                print(f"      ✅ Tidak ada yang dieliminasi kondisi khusus")
+
+            # Filter 2: Alergi Personal
+            details_before_allergy = get_details(safe)
+            safe_names_before = {h['name'].splitlines()[0] for h in details_before_allergy}
+            if allergies:
+                print(f"   🔎 Filter Alergi ({', '.join(allergies)}):")
+            details = filter_allergies(details_before_allergy, allergies)
+            safe_names_after = {h['name'].splitlines()[0] for h in details}
+            eliminated_allergy = safe_names_before - safe_names_after
+            count_allergy_eliminated = len(eliminated_allergy)
+            if count_allergy_eliminated == 0 and allergies:
+                print(f"      ✅ Tidak ada yang dieliminasi karena alergi")
+
+            # ✅ RINGKASAN LENGKAP DENGAN NAMA HERBAL
+            print(f"   {'─'*50}")
+            print(f"   📊 [RINGKASAN '{label}']")
+            print(f"      Total awal            : {count_raw} herbal")
+            print(f"         → {', '.join(sorted(herb_names_set))}")
+
+            if count_rbs_eliminated > 0:
+                eliminated_rbs_names = herb_names_set - set(safe)
+                print(f"      🛑 Eliminasi kondisi  : {count_rbs_eliminated} herbal")
+                print(f"         → {', '.join(sorted(eliminated_rbs_names))}")
+            else:
+                print(f"      🛑 Eliminasi kondisi  : 0 herbal")
+
+            if eliminated_allergy:
+                print(f"      🚫 Eliminasi alergi   : {count_allergy_eliminated} herbal")
+                print(f"         → {', '.join(sorted(eliminated_allergy))}")
+            else:
+                print(f"      🚫 Eliminasi alergi   : 0 herbal")
+
+            lolos_names = sorted([h['name'].splitlines()[0] for h in details])
+            print(f"      ✅ Lolos & ditampilkan: {len(details)} herbal")
+            if lolos_names:
+                print(f"         → {', '.join(lolos_names)}")
+
+            return details
+
         def save_history(result_group):
             try:
                 db.execute(text("""
@@ -745,25 +951,25 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                     VALUES (:wallet, :diag, :symp, :cond, :drug, :res, NOW())
                 """), {
                     "wallet": req.wallet_address.lower(),
-                    "diag": json.dumps([f"Analisis: {req.query_text[:50]}..."]), 
+                    "diag": json.dumps([f"Analisis: {req.query_text[:50]}..."]),
                     "symp": json.dumps([]),
                     "cond": json.dumps(req.kondisi),
                     "drug": json.dumps(req.obat_kimia),
                     "res": json.dumps(result_group)
                 })
                 db.commit()
-                print(f"💾 [HISTORY] Riwayat disimpan untuk: {req.wallet_address}")
+                print(f"💾 [HISTORY] Tersimpan untuk: {req.wallet_address}")
             except Exception as e:
                 db.rollback()
-                print(f"⚠️ [HISTORY] Gagal simpan riwayat: {e}")
+                print(f"⚠️ [HISTORY] Gagal simpan: {e}")
 
-        # --- 3. SHARED CHUNKING ---
-        print(f"🧩 [NLP] Membedah kalimat (Chunking)...")
+        # --- CHUNKING ---
+        print(f"\n🧩 [NLP] Memecah kalimat input...")
         delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b'
         raw_chunks = re.split(delimiters, query_clean)
-        
-        stop_words = ["pasien", "mengeluhkan", "gejala", "ditemukan", "adanya", "ada", "terdapat", "diagnosis", "didiagnosis", "yang", "di", "ke", "dari", "ini", "itu", "nya", "ialah", "adalah", "terdapat", "alami", "mengidap", "penyakit", "mengalami", "juga", "seharusnya"]
-        
+        stop_words = ["pasien", "mengeluhkan", "gejala", "ditemukan", "adanya", "ada", "terdapat",
+                      "diagnosis", "didiagnosis", "yang", "di", "ke", "dari", "ini", "itu", "nya",
+                      "ialah", "adalah", "alami", "mengidap", "penyakit", "mengalami", "juga", "seharusnya"]
         clean_chunks = []
         for chunk in raw_chunks:
             temp = chunk
@@ -772,30 +978,31 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             temp = " ".join(re.sub(r'[^\w\s]', '', temp).split())
             if len(temp) > 2:
                 clean_chunks.append(temp)
+        print(f"   Hasil chunks : {clean_chunks}")
 
-        print(f"🧩 [NLP] Hasil Clean Chunks: {clean_chunks}")
-        
-        user_allergies = get_user_allergies(req.wallet_address, db)
-        if user_allergies:
-            print(f"⚠️ [ALERGI] User memiliki alergi: {user_allergies}")
-
-        # --- 4. PROSES PENCARIAN (GROUPING SERAGAM) ---
-        grouped_data = {} 
+        # --- LAPIS 1: SQL EXACT MATCH ---
+        grouped_data = {}
         chunks_to_ai = []
-
         start_l1 = time.time()
-        print(f"\n🔍 [LAPIS 1] MEMULAI EXACT MATCHING (SQL)")
+        print(f"\n{'─'*60}")
+        print(f"🔍 [LAPIS 1] SQL EXACT MATCHING")
+        print(f"{'─'*60}")
+
         for chunk in clean_chunks:
+            print(f"\n   🔎 Mencari: '{chunk}'")
             diag_db = db.execute(text("SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
             symp_db = db.execute(text("SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
-            
+
             if diag_db or symp_db:
-                print(f"      ✅ [DITEMUKAN] Cocok di tabel SQL.")
+                print(f"   ✅ Ditemukan di SQL sebagai {'Diagnosis' if diag_db else 'Gejala'}")
                 baku_name = chunk.strip().capitalize()
                 db_res = diag_db if diag_db else symp_db
-                safe = get_safe_herbs({row[0] for row in db_res}, sel_cond)
-                herbs_list = filter_allergies(get_details(safe), user_allergies)
-                
+
+                # ✅ Gunakan apply_all_filters — RBS kondisi + RBS alergi
+                herbs_list = apply_all_filters(
+                    {row[0] for row in db_res}, baku_name, sel_cond, user_allergies
+                )
+
                 if herbs_list:
                     if baku_name not in grouped_data:
                         grouped_data[baku_name] = {
@@ -807,18 +1014,22 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                     else:
                         if chunk not in grouped_data[baku_name]["detected_from_list"]:
                             grouped_data[baku_name]["detected_from_list"].append(chunk)
+                else:
+                    print(f"   ⚠️ Semua herbal untuk '{chunk}' dieliminasi filter, tidak ditampilkan.")
             else:
-                print(f"      ❌ [SQL FAIL] Tidak ada di SQL. Kirim '{chunk}' ke Lapis 2.")
+                print(f"   ❌ Tidak ditemukan di SQL → dikirim ke Lapis 2 (SBERT)")
                 chunks_to_ai.append(chunk)
-        
-        print(f"⏱️  Waktu Lapis 1 (SQL): {(time.time() - start_l1)*1000:.2f} ms")
-        
+
+        print(f"\n⏱️  Lapis 1 selesai: {(time.time() - start_l1)*1000:.2f} ms")
+
+        # --- LAPIS 2: SBERT ---
         final_result_groups = []
 
-        # --- 5. LAPIS 2: ANALISIS AI SBERT ---
         if chunks_to_ai:
             start_l2 = time.time()
-            print(f"🧠 [LAPIS 2] Memulai analisis SBERT...")
+            print(f"\n{'─'*60}")
+            print(f"🧠 [LAPIS 2] SBERT SEMANTIC MATCHING")
+            print(f"{'─'*60}")
             from sentence_transformers import SentenceTransformer
             import chromadb
             model_ai = SentenceTransformer('intfloat/multilingual-e5-small')
@@ -826,7 +1037,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             collection = chroma_client.get_collection(name="med_labels")
 
             for chunk in chunks_to_ai:
-                print(f"   ➤ Menganalisis: '{chunk}'...")
+                print(f"\n   🔎 Menganalisis: '{chunk}'")
                 cv = model_ai.encode([f"query: {chunk}"]).tolist()
                 sr = collection.query(query_embeddings=cv, n_results=1)
 
@@ -834,11 +1045,10 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                     similarity = (1 - sr['distances'][0][0]) * 100
                     label_baku = sr['metadatas'][0][0]['baku'].strip()
                     baku_cap = label_baku.capitalize()
-
-                    print(f"      🤖 '{chunk}' ⮕ '{label_baku}' ({similarity:.2f}%)")
+                    print(f"   🤖 SBERT: '{chunk}' → '{label_baku}' (similarity: {similarity:.2f}%)")
 
                     if similarity >= 88.0:
-                        print(f"      ✅ Diterima. Mapping ke database...")
+                        print(f"   ✅ Diterima (≥88%). Mapping ke database...")
                         is_diag = db.execute(
                             text("SELECT 1 FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"),
                             {"q": label_baku}
@@ -850,8 +1060,10 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                             SELECT herbal_name FROM herbal_symptoms WHERE TRIM(symptom) ILIKE TRIM(:q)
                         """), {"q": label_baku}).fetchall()
 
-                        safe_ai = get_safe_herbs({r[0] for r in ai_db}, sel_cond)
-                        herbs_ai_list = filter_allergies(get_details(safe_ai), user_allergies)
+                        # ✅ Gunakan apply_all_filters — RBS kondisi + RBS alergi
+                        herbs_ai_list = apply_all_filters(
+                            {r[0] for r in ai_db}, baku_cap, sel_cond, user_allergies
+                        )
 
                         if herbs_ai_list:
                             if baku_cap not in grouped_data:
@@ -864,40 +1076,36 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                             else:
                                 if chunk not in grouped_data[baku_cap]["detected_from_list"]:
                                     grouped_data[baku_cap]["detected_from_list"].append(chunk)
+                        else:
+                            print(f"   ⚠️ Semua herbal untuk '{label_baku}' dieliminasi filter.")
                     else:
-                        print(f"      ⚠️ Skor terlalu rendah. Dilewati.")
+                        print(f"   ⚠️ Ditolak (similarity {similarity:.2f}% < 88%). Dilewati.")
 
-            print(f"⏱️  Waktu Lapis 2 (SBERT): {(time.time() - start_l2)*1000:.2f} ms")
+            print(f"\n⏱️  Lapis 2 selesai: {(time.time() - start_l2)*1000:.2f} ms")
 
-        # --- 6. FINAL CONSOLIDATION ---
+        # --- FINAL CONSOLIDATION ---
+        print(f"\n{'─'*60}")
+        print(f"📦 [FINAL CONSOLIDATION] Menyusun hasil akhir...")
+        print(f"{'─'*60}")
         for name, data in grouped_data.items():
             sources = data["detected_from_list"]
-            
-            # FORMAT 1: Header (Tampilan Luar) - Rapi tanpa spasi tambahan
             h_list = [f'"{s}"' for s in sources]
             h_text = ", ".join(h_list[:-1]) + f' dan {h_list[-1]}' if len(h_list) > 1 else h_list[0]
-            header_info = f"Berdasarkan keluhan: {h_text}"
-
-            # FORMAT 2: Kotak Biru (Informasi Pengenalan)
-            # Menghilangkan spasi ekstra di dalam petik sesuai permintaan Anda
-            m_list = [f'"{s}"' for s in sources] 
-            m_text = ", ".join(m_list[:-1]) + f' dan {m_list[-1]}' if len(m_list) > 1 else m_list[0]
-            
-            # Kalimat: Berdasarkan keluhan "A", sistem mengenali sebagai "B"
-            # Ditambahkan tanda petik pada bagian {name}
-            mapping_info = f'Berdasarkan keluhan {m_text}, sistem mengenali sebagai "{name}"'
+            m_text = h_text
 
             final_result_groups.append({
                 "group_type": data["group_type"],
                 "group_name": name,
-                "header_info": header_info,
-                "mapping_info": mapping_info,
+                "header_info": f"Berdasarkan keluhan: {h_text}",
+                "mapping_info": f'Berdasarkan keluhan {m_text}, sistem mengenali sebagai "{name}"',
                 "herbs": data["herbs"]
             })
+            print(f"   ✅ '{name}' → {len(data['herbs'])} herbal aman")
 
         end_total = (time.time() - start_total) * 1000
-        print(f"\n✨ [FINISH] Analisis selesai. Ditemukan {len(final_result_groups)} kategori.")
-        print(f"⏱️  Total Waktu Backend: {end_total:.2f} ms")
+        print(f"\n{'='*70}")
+        print(f"✨ [SELESAI] {len(final_result_groups)} kategori ditemukan.")
+        print(f"⏱️  Total waktu backend: {end_total:.2f} ms")
         print(f"{'='*70}\n")
 
         if final_result_groups:
@@ -909,7 +1117,8 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
         print(f"\n🔥 [CRITICAL ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
 @app.get("/api/history/{wallet_address}")
 def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
     try:
