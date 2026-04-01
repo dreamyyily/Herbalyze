@@ -142,8 +142,8 @@ def seed_postgresql():
             else:
                 # Untuk tabel Herbal Gejala & Diagnosis, bersihkan juga kolom kuncinya
                 df = df.rename(columns=info['mapping'])
-                if 'symptom' in df.columns: df['symptom'] = df['symptom'].astype(str).str.strip()
-                if 'diagnosis' in df.columns: df['diagnosis'] = df['diagnosis'].astype(str).str.strip()
+                if 'symptom' in df.columns: df['symptom'] = df['symptom'].astype(str).str.strip().str.title()
+                if 'diagnosis' in df.columns: df['diagnosis'] = df['diagnosis'].astype(str).str.strip().str.title()
 
             # Filter hanya kolom yang ada di mapping values
             valid_cols = [c for c in df.columns if c in info['mapping'].values()]

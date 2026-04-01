@@ -537,7 +537,7 @@ def get_diagnoses(db: Session = Depends(get_db)):
         ORDER BY diagnosis;
     """)).fetchall()
     
-    cleaned = sorted(set(row[0].strip() for row in result if row[0]))
+    cleaned = sorted(set(row[0].strip().title() for row in result if row[0] and row[0].strip()))
     return cleaned
 
 @app.get("/api/symptoms")
@@ -548,7 +548,7 @@ def get_symptoms(db: Session = Depends(get_db)):
         ORDER BY symptom;
     """)).fetchall()
     
-    cleaned = sorted(set(row[0].strip() for row in result if row[0]))
+    cleaned = sorted(set(row[0].strip().title() for row in result if row[0] and row[0].strip()))
     return cleaned
 
 @app.get("/api/special-conditions")
@@ -689,7 +689,7 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         # --- LOOP DIAGNOSIS ---
         for d in sel_diag:
             print(f"\n🔍 [SQL] Mencari: '{d}'")
-            found = {r[1] for r in all_diags if r[0] and r[0].strip() == d}
+            found = {r[1] for r in all_diags if r[0] and r[0].strip().lower() == d.strip().lower()}
             
             if not found:
                 print(f"   ❌ Tidak ada data di database untuk '{d}'.")
@@ -734,7 +734,7 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         # --- LOOP GEJALA ---
         for s in sel_symp:
             print(f"\n🔍 [SQL] Mencari: '{s}'")
-            found = {r[1] for r in all_symps if r[0] and r[0].strip() == s}
+            found = {r[1] for r in all_symps if r[0] and r[0].strip().lower() == s.strip().lower()}
             
             if not found:
                 print(f"   ❌ Tidak ada data di database untuk '{s}'.")
