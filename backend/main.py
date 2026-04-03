@@ -638,24 +638,37 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         def get_safe_herbs(herb_names, conditions):
             if not herb_names: return []
             if not conditions: return list(herb_names)
-            
+
+            # ✅ FIX: Nama herbal di herbal_diagnoses/herbal_symptoms bisa multi-baris
+            # (misal: "Bawang Putih\nLasuna (Batak)\n..."), sedangkan di herbal_special_conditions
+            # hanya tersimpan nama utama saja (misal: "Bawang Putih").
+            # Buat mapping: nama_utama → nama_asli_multiline agar filter bisa cocok.
+            name_to_main = {}  # nama_asli_multiline → nama_utama (baris pertama)
+            main_names = []
+            for h in herb_names:
+                main = h.strip().split("\n")[0].strip()
+                name_to_main[h] = main
+                main_names.append(main)
+
             result = db.execute(text("""
                 SELECT herbal_name, special_condition FROM herbal_special_conditions 
                 WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
-            """), {"names": list(herb_names), "conds": list(conditions)}).fetchall()
+            """), {"names": main_names, "conds": list(conditions)}).fetchall()
             
+            # Kumpulkan nama utama yang tidak aman
             unsafe_reasons = {}
             for row in result:
-                herb, cond = row[0], row[1]
-                if herb not in unsafe_reasons:
-                    unsafe_reasons[herb] = []
-                unsafe_reasons[herb].append(cond)
+                herb_main, cond = row[0], row[1]
+                if herb_main not in unsafe_reasons:
+                    unsafe_reasons[herb_main] = []
+                unsafe_reasons[herb_main].append(cond)
             
             safe_herbs = []
             for h in herb_names:
-                if h in unsafe_reasons:
-                    alasan = ", ".join(unsafe_reasons[h])
-                    print(f"      🛑 {h} → DIELIMINASI (berbahaya bagi: {alasan})")
+                main = name_to_main[h]
+                if main in unsafe_reasons:
+                    alasan = ", ".join(unsafe_reasons[main])
+                    print(f"      🛑 {main} → DIELIMINASI (berbahaya bagi: {alasan})")
                 else:
                     safe_herbs.append(h)
             return safe_herbs
@@ -846,25 +859,36 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             if not h_names: return []
             if not conditions: return list(h_names)
 
+            # ✅ FIX: Nama herbal di DB bisa multi-baris ("Bawang Putih\nLasuna (Batak)\n...")
+            # sedangkan herbal_special_conditions menyimpan nama utama saja ("Bawang Putih").
+            # Buat mapping dari nama asli multi-baris → nama utama (baris pertama).
+            name_to_main = {}
+            main_names = []
+            for h in h_names:
+                main = h.strip().split("\n")[0].strip()
+                name_to_main[h] = main
+                main_names.append(main)
+
             result_db = db.execute(text("""
                 SELECT herbal_name, special_condition 
                 FROM herbal_special_conditions 
                 WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
-            """), {"names": list(h_names), "conds": list(conditions)}).fetchall()
+            """), {"names": main_names, "conds": list(conditions)}).fetchall()
 
-            # ✅ Kumpulkan semua kondisi per herbal (bisa lebih dari satu)
+            # Kumpulkan semua kondisi berbahaya per nama utama herbal
             unsafe_reasons = {}
             for row in result_db:
-                herb, cond = row[0], row[1]
-                if herb not in unsafe_reasons:
-                    unsafe_reasons[herb] = []
-                unsafe_reasons[herb].append(cond)
+                herb_main, cond = row[0], row[1]
+                if herb_main not in unsafe_reasons:
+                    unsafe_reasons[herb_main] = []
+                unsafe_reasons[herb_main].append(cond)
 
             safe_herbs = []
             for h in h_names:
-                if h in unsafe_reasons:
-                    alasan = ", ".join(unsafe_reasons[h])
-                    print(f"      🛑 {h} → DIELIMINASI (berbahaya bagi: {alasan})")
+                main = name_to_main[h]
+                if main in unsafe_reasons:
+                    alasan = ", ".join(unsafe_reasons[main])
+                    print(f"      🛑 {main} → DIELIMINASI (berbahaya bagi: {alasan})")
                 else:
                     safe_herbs.append(h)
             return safe_herbs
