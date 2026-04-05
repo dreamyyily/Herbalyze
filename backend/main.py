@@ -517,7 +517,7 @@ async def update_instansi(
 
     user.instansi_lama = user.nama_instansi   
     user.instansi_baru = nama_instansi.strip() 
-    user.dokumen_str_path = cid
+    user.dokumen_sip_path = cid
     user.role = "Pending_Doctor"
     user.nomor_str = None
     user.created_at = datetime.utcnow()

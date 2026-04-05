@@ -22,16 +22,27 @@ def migrate_users_table():
         cursor = conn.cursor()
         
         print("=" * 60)
-        print("Migrating users table...")
+        print("Migrating users table - Adding IPFS CID columns...")
         print("=" * 60)
 
-        cursor.execute("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name='users' AND column_name='password';
-        """)
-        if cursor.fetchone():
-            cursor.execute("ALTER TABLE users ALTER COLUMN password DROP NOT NULL;")
-            print("✅ password column is now nullable")
+        cid_columns = [
+            ("dokumen_str_path", "TEXT"),     
+            ("dokumen_sip_path", "TEXT"),    
+            ("dokumen_verified", "BOOLEAN DEFAULT FALSE"),
+            ("dokumen_verified_at", "TIMESTAMP"),
+        ]
+
+        for nama_kolom, tipe in cid_columns:
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='users' AND column_name=%s
+            """, (nama_kolom,))
+            
+            if cursor.fetchone():
+                print(f"✅ Kolom '{nama_kolom}' sudah ada.")
+            else:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {nama_kolom} {tipe};")
+                print(f"✅ Kolom '{nama_kolom}' berhasil ditambahkan.")
 
         kolom_lama = [
             ("password_hash",       "VARCHAR(256)"),
@@ -60,7 +71,7 @@ def migrate_users_table():
             """, (nama_kolom,))
             
             if cursor.fetchone():
-                print(f"✅ Kolom '{nama_kolom}' sudah ada, dilewati.")
+                print(f"✅ Kolom '{nama_kolom}' sudah ada.")
             else:
                 cursor.execute(f"ALTER TABLE users ADD COLUMN {nama_kolom} {tipe};")
                 print(f"✅ Kolom '{nama_kolom}' berhasil ditambahkan.")
