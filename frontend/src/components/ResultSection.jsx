@@ -1,21 +1,11 @@
 import { useState, useEffect } from "react";
+import { AlertTriangle, ShieldAlert, X, Info, BookOpen } from "lucide-react";
 
-/**
- * Komponen: ResultSection
- * Deskripsi: Menampilkan hasil rekomendasi AI dalam bentuk Laci (Accordion) dan Kartu.
- * Dilengkapi dengan Modal Detail untuk menampilkan informasi lengkap tanaman herbal.
- */
 export default function ResultSection({ recommendations, selectedDrug }) {
-  // ========================================================================
-  // 1. STATE & PENGATURAN AWAL
-  // ========================================================================
-  
-  // State untuk menampung data tanaman herbal yang diklik (untuk membuka Modal)
   const [selectedItem, setSelectedItem] = useState(null);
-  
-  // State untuk mengontrol laci (accordion) mana yang sedang terbuka. 
-  // Default 0 berarti laci urutan pertama akan otomatis terbuka.
+  const [unsafeDetail, setUnsafeDetail] = useState(null);
   const [openAccordion, setOpenAccordion] = useState(0);
+
 
   // Efek: Setiap kali data rekomendasi berubah (user melakukan pencarian baru),
   // reset laci agar yang terbuka kembali ke laci urutan pertama (index 0).
@@ -55,6 +45,16 @@ export default function ResultSection({ recommendations, selectedDrug }) {
   // Menghitung total seluruh tanaman herbal dari semua kelompok diagnosis/gejala
   const totalHerbs = recommendations.reduce((sum, group) => sum + group.herbs.length, 0);
 
+  const formatFullHerbalName = (rawName) => getCleanName(rawName);
+
+const totalUnsafe = recommendations.reduce(
+  (sum, group) => sum + (group.unsafe_herbs?.length || 0),
+  0
+);
+
+const hasAnyResult = totalHerbs > 0 || totalUnsafe > 0;
+
+  
   // ========================================================================
   // 3. RENDER ANTARMUKA UTAMA (DAFTAR LACI & KARTU)
   // ========================================================================
@@ -66,18 +66,27 @@ export default function ResultSection({ recommendations, selectedDrug }) {
         <h2 className="text-3xl md:text-4xl font-extrabold text-dark-50 mb-4">
           Hasil Analisis AI <span className="text-primary-40">Herbalyze</span>
         </h2>
+
         {totalHerbs > 0 ? (
           <p className="text-lg text-dark-30 max-w-2xl mx-auto">
-            Kami telah menyusun <span className="font-bold text-primary-50 bg-primary-10 px-3 py-1 rounded-full mx-1">{totalHerbs}</span> rekomendasi herbal ke dalam kelompok di bawah ini. Silakan klik untuk melihat detailnya.
+            Kami telah menyusun{" "}
+            <span className="font-bold text-primary-50 bg-primary-10 px-3 py-1 rounded-full mx-1">
+              {totalHerbs}
+            </span>{" "}
+            rekomendasi herbal aman. Silakan klik tiap kategori untuk melihat detailnya.
+          </p>
+        ) : totalUnsafe > 0 ? (
+          <p className="text-lg text-rose-700 bg-rose-50 p-4 rounded-xl inline-block border border-rose-100">
+            Tidak ada herbal yang aman untuk kondisi Anda. Namun, sistem menemukan daftar herbal yang perlu dihindari.
           </p>
         ) : (
           <p className="text-lg text-amber-600 bg-amber-50 p-4 rounded-xl inline-block border border-amber-100">
-            Mohon maaf, kami tidak menemukan herbal yang aman/cocok untuk kondisi Anda.
+            Mohon maaf, kami tidak menemukan data herbal yang relevan untuk kondisi Anda.
           </p>
         )}
       </div>
 {/* --- DAFTAR ACCORDION (LACI) --- */}
-      {totalHerbs > 0 && (
+      {hasAnyResult && (
         <div className="max-w-5xl mx-auto space-y-4">
           {recommendations.map((group, index) => {
             const isOpen = openAccordion === index;
@@ -172,6 +181,105 @@ export default function ResultSection({ recommendations, selectedDrug }) {
                       </div>
                       </div>
                     )}
+                   {(group.unsafe_herbs?.length || 0) > 0 && (
+                    <div className="mb-8">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="text-sm font-black uppercase tracking-[0.2em] text-rose-600">
+                            Herbal yang perlu dihindari
+                          </h4>
+                          <p className="text-sm text-slate-500 mt-1">
+                            Sistem mendeteksi {group.unsafe_herbs.length} herbal yang berisiko untuk kategori ini.
+                          </p>
+                        </div>
+                        <span className="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs font-bold">
+                          {group.unsafe_herbs.length} Risiko
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {group.unsafe_herbs.map((unsafe, uIdx) => (
+                          <div
+                            key={uIdx}
+                            className="bg-white border border-rose-100 rounded-[24px] p-5 flex flex-col justify-between shadow-sm hover:border-rose-300 transition-all"
+                          >
+                            <div>
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black uppercase rounded-md tracking-widest mb-3 inline-block">
+                                Kategori: {group.group_name}
+                              </span>
+
+                              <h5 className="text-base font-black text-slate-800 mb-2">
+                                {unsafe.name}
+                              </h5>
+
+                              <p className="text-[11px] text-rose-600 font-bold italic flex items-center gap-1.5 mb-4">
+                                <AlertTriangle size={12} />
+                                {unsafe.reason}
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={() => setUnsafeDetail(unsafe)}
+                              className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md active:scale-95"
+                            >
+                              Lihat Analisis Risiko
+                            </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {unsafeDetail && (
+                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-[fadeIn_0.2s]">
+                        <div className="bg-white rounded-[40px] w-full max-w-xl overflow-hidden shadow-2xl animate-[slideUp_0.3s]">
+                          <div className="p-8">
+                            <div className="flex justify-between items-start mb-6">
+                              <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner">
+                                <ShieldAlert size={28} />
+                              </div>
+                              <button onClick={() => setUnsafeDetail(null)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors"><X /></button>
+                            </div>
+
+                            <h2 className="text-2xl font-black text-slate-800 leading-tight mb-4">
+                              {/* DI SINI SELURUH NAMA MUNCUL DENGAN KOMA */}
+                              {formatFullHerbalName(unsafeDetail.full_name || unsafeDetail.name)}
+                            </h2>
+
+                            <div className="flex items-center gap-3 p-4 bg-rose-50 rounded-2xl border border-rose-100 mb-6">
+                              <AlertTriangle className="text-rose-500" size={20} />
+                              <p className="text-xs font-black text-rose-700 uppercase tracking-tighter">{unsafeDetail.reason}</p>
+                            </div>
+
+                            <div className="space-y-5">
+                              <div className="bg-slate-50 rounded-[28px] p-6 border border-slate-100">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                  <Info size={14} className="text-indigo-500" /> Analisis Efek Samping
+                                </h4>
+                                <p className="text-[14px] text-slate-600 leading-relaxed font-medium">
+                                  {unsafeDetail.description}
+                                </p>
+                              </div>
+
+                              {unsafeDetail.reference && unsafeDetail.reference !== "-" && (
+                                <div className="bg-indigo-50/50 rounded-[28px] p-6 border border-indigo-100/50">
+                                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                    <BookOpen size={14} className="text-indigo-600" /> Referensi Klinis
+                                  </h4>
+                                  <p className="text-[12px] text-indigo-800/80 italic font-bold leading-relaxed">
+                                    "{unsafeDetail.reference}"
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            <button onClick={() => setUnsafeDetail(null)} className="w-full mt-8 py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase shadow-xl hover:bg-slate-800 transition-all active:scale-95">
+                              SAYA MENGERTI & TUTUP
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}             
                     {/* ... sisa grid herbs Anda di bawahnya ... */}
 
                     {/* Logika Tata Letak Grid: Auto-center jika jumlah kartu sedikit */}
