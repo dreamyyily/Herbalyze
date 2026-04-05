@@ -56,6 +56,7 @@ def get_user_allergies(wallet_address: str, db: Session) -> set:
     if not wallet_address or wallet_address == "guest_user":
         return set()
     try:
+        db.expire_all()  # Mencegah pembacaan data stale (basi) dari cache sesi SQLAlchemy
         user = db.query(User).filter(
             func.lower(User.wallet_address) == wallet_address.lower()
         ).first()
@@ -144,6 +145,18 @@ def get_password_hash(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Mengecek kecocokan password
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def normalize_text_key(value: str) -> str:
+    """
+    Normalisasi string untuk matching robust antar tabel:
+    - lowercase
+    - samakan apostrof melengkung -> apostrof biasa
+    - buang karakter non-alfanumerik (spasi/punctuation)
+    """
+    if value is None:
+        return ""
+    v = str(value).strip().lower().replace("’", "'")
+    return re.sub(r"[^a-z0-9]+", "", v)
 
 def is_child_under_five(wallet_address: str, db: Session) -> bool:
     """
@@ -639,35 +652,57 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
             if not herb_names: return []
             if not conditions: return list(herb_names)
 
-            # ✅ FIX: Nama herbal di herbal_diagnoses/herbal_symptoms bisa multi-baris
-            # (misal: "Bawang Putih\nLasuna (Batak)\n..."), sedangkan di herbal_special_conditions
-            # hanya tersimpan nama utama saja (misal: "Bawang Putih").
-            # Buat mapping: nama_utama → nama_asli_multiline agar filter bisa cocok.
             name_to_main = {}  # nama_asli_multiline → nama_utama (baris pertama)
-            main_names = []
+            main_keys = []
             for h in herb_names:
-                main = h.strip().split("\n")[0].strip()
+                main = str(h).strip().split("\n")[0].strip()
                 name_to_main[h] = main
-                main_names.append(main)
+                main_keys.append(main)
 
-            result = db.execute(text("""
-                SELECT herbal_name, special_condition FROM herbal_special_conditions 
-                WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
-            """), {"names": main_names, "conds": list(conditions)}).fetchall()
-            
-            # Kumpulkan nama utama yang tidak aman
-            unsafe_reasons = {}
-            for row in result:
-                herb_main, cond = row[0], row[1]
-                if herb_main not in unsafe_reasons:
-                    unsafe_reasons[herb_main] = []
-                unsafe_reasons[herb_main].append(cond)
-            
+            # Map main_key herbal_diagnoses/symptoms -> latin_key untuk kandidat herb_names
+            herb_main_to_latin_key = {}
+            latin_rows = db.execute(text("""
+                SELECT herbal_name, latin_name
+                FROM herbal_diagnoses
+                WHERE herbal_name = ANY(:names)
+                UNION
+                SELECT herbal_name, latin_name
+                FROM herbal_symptoms
+                WHERE herbal_name = ANY(:names)
+            """), {"names": list(herb_names)}).fetchall()
+            for herb_n, latin_n in latin_rows:
+                main = str(herb_n).strip().split("\n")[0].strip()
+                herb_main_to_latin_key[normalize_text_key(main)] = normalize_text_key(latin_n)
+
+            # Ambil semua rule unsafe untuk kondisi yang dipilih
+            unsafe_rows = db.execute(text("""
+                SELECT herbal_name, latin_name, special_condition
+                FROM herbal_special_conditions
+                WHERE LOWER(TRIM(special_condition)) = ANY(:conds_lower)
+            """), {"conds_lower": [c.strip().lower() for c in list(conditions)]}).fetchall()
+
+            unsafe_reasons_by_herb_key = {}
+            unsafe_reasons_by_latin_key = {}
+            for herb_n, latin_n, cond in unsafe_rows:
+                herb_key = normalize_text_key(herb_n)
+                latin_key = normalize_text_key(latin_n)
+                unsafe_reasons_by_herb_key.setdefault(herb_key, set()).add(cond)
+                if latin_key:
+                    unsafe_reasons_by_latin_key.setdefault(latin_key, set()).add(cond)
+
             safe_herbs = []
             for h in herb_names:
                 main = name_to_main[h]
-                if main in unsafe_reasons:
-                    alasan = ", ".join(unsafe_reasons[main])
+                main_key = normalize_text_key(main)
+                latin_key = herb_main_to_latin_key.get(main_key, "")
+
+                if (main_key in unsafe_reasons_by_herb_key) or (latin_key and latin_key in unsafe_reasons_by_latin_key):
+                    reasons = set()
+                    if main_key in unsafe_reasons_by_herb_key:
+                        reasons |= unsafe_reasons_by_herb_key[main_key]
+                    if latin_key and latin_key in unsafe_reasons_by_latin_key:
+                        reasons |= unsafe_reasons_by_latin_key[latin_key]
+                    alasan = ", ".join(sorted(reasons))
                     print(f"      🛑 {main} → DIELIMINASI (berbahaya bagi: {alasan})")
                 else:
                     safe_herbs.append(h)
@@ -791,23 +826,23 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
 
         if grouped_results:
             try:
-                db.execute(text("""
-                    INSERT INTO search_history 
-                    (wallet_address, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at)
-                    VALUES (:wallet, :diag, :symp, :cond, :drug, :res, NOW())
-                """), {
-                    "wallet": wallet_addr.lower(),
-                    "diag": json.dumps(sel_diag),
-                    "symp": json.dumps(sel_symp),
-                    "cond": json.dumps(raw_cond),
-                    "drug": json.dumps(obat_kimia),
-                    "res": json.dumps(grouped_results)
-                })
+                new_history = SearchHistory(
+                    wallet_address=wallet_addr.lower(),
+                    diagnoses=sel_diag,
+                    symptoms=sel_symp,
+                    special_conditions=raw_cond,
+                    chemical_drugs=obat_kimia,
+                    recommendations=grouped_results
+                )
+                db.add(new_history)
                 db.commit()
-                print(f"💾 [HISTORY] Riwayat disimpan untuk: {wallet_addr}")
+                db.refresh(new_history)
+                print(f"✅ [HISTORY] Berhasil tersimpan (ID: {new_history.id})")
             except Exception as e:
                 db.rollback()
-                print(f"⚠️ [HISTORY] Gagal simpan riwayat: {e}")
+                print(f"❌ [HISTORY] Gagal simpan: {str(e)}")
+                # Tetap lanjut agar rekomendasi tampil walau simpan gagal
+                pass
 
         return grouped_results
     except Exception as e:
@@ -859,35 +894,57 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             if not h_names: return []
             if not conditions: return list(h_names)
 
-            # ✅ FIX: Nama herbal di DB bisa multi-baris ("Bawang Putih\nLasuna (Batak)\n...")
-            # sedangkan herbal_special_conditions menyimpan nama utama saja ("Bawang Putih").
-            # Buat mapping dari nama asli multi-baris → nama utama (baris pertama).
             name_to_main = {}
-            main_names = []
+            main_keys = []
             for h in h_names:
                 main = h.strip().split("\n")[0].strip()
                 name_to_main[h] = main
-                main_names.append(main)
+                main_keys.append(main)
 
-            result_db = db.execute(text("""
-                SELECT herbal_name, special_condition 
-                FROM herbal_special_conditions 
-                WHERE herbal_name = ANY(:names) AND special_condition = ANY(:conds)
-            """), {"names": main_names, "conds": list(conditions)}).fetchall()
+            # Map main_key herbal_diagnoses/symptoms -> latin_key untuk kandidat h_names
+            herb_main_to_latin_key = {}
+            latin_rows = db.execute(text("""
+                SELECT herbal_name, latin_name
+                FROM herbal_diagnoses
+                WHERE herbal_name = ANY(:names)
+                UNION
+                SELECT herbal_name, latin_name
+                FROM herbal_symptoms
+                WHERE herbal_name = ANY(:names)
+            """), {"names": list(h_names)}).fetchall()
+            for herb_n, latin_n in latin_rows:
+                main = str(herb_n).strip().split("\n")[0].strip()
+                herb_main_to_latin_key[normalize_text_key(main)] = normalize_text_key(latin_n)
 
-            # Kumpulkan semua kondisi berbahaya per nama utama herbal
-            unsafe_reasons = {}
-            for row in result_db:
-                herb_main, cond = row[0], row[1]
-                if herb_main not in unsafe_reasons:
-                    unsafe_reasons[herb_main] = []
-                unsafe_reasons[herb_main].append(cond)
+            # Ambil semua rule unsafe untuk kondisi yang dipilih
+            unsafe_rows = db.execute(text("""
+                SELECT herbal_name, latin_name, special_condition
+                FROM herbal_special_conditions
+                WHERE LOWER(TRIM(special_condition)) = ANY(:conds_lower)
+            """), {"conds_lower": [c.strip().lower() for c in list(conditions)]}).fetchall()
+
+            unsafe_reasons_by_herb_key = {}
+            unsafe_reasons_by_latin_key = {}
+            for herb_n, latin_n, cond in unsafe_rows:
+                herb_key = normalize_text_key(herb_n)
+                latin_key = normalize_text_key(latin_n)
+                unsafe_reasons_by_herb_key.setdefault(herb_key, set()).add(cond)
+                if latin_key:
+                    unsafe_reasons_by_latin_key.setdefault(latin_key, set()).add(cond)
 
             safe_herbs = []
             for h in h_names:
                 main = name_to_main[h]
-                if main in unsafe_reasons:
-                    alasan = ", ".join(unsafe_reasons[main])
+                main_key = normalize_text_key(main)
+                latin_key = herb_main_to_latin_key.get(main_key, "")
+
+                if (main_key in unsafe_reasons_by_herb_key) or (latin_key and latin_key in unsafe_reasons_by_latin_key):
+                    reasons = set()
+                    if main_key in unsafe_reasons_by_herb_key:
+                        reasons |= unsafe_reasons_by_herb_key[main_key]
+                    if latin_key and latin_key in unsafe_reasons_by_latin_key:
+                        reasons |= unsafe_reasons_by_latin_key[latin_key]
+                    alasan = ", ".join(sorted(reasons))
                     print(f"      🛑 {main} → DIELIMINASI (berbahaya bagi: {alasan})")
                 else:
                     safe_herbs.append(h)
@@ -969,20 +1026,17 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
 
         def save_history(result_group):
             try:
-                db.execute(text("""
-                    INSERT INTO search_history 
-                    (wallet_address, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations, created_at)
-                    VALUES (:wallet, :diag, :symp, :cond, :drug, :res, NOW())
-                """), {
-                    "wallet": req.wallet_address.lower(),
-                    "diag": json.dumps([f"Analisis: {req.query_text[:50]}..."]),
-                    "symp": json.dumps([]),
-                    "cond": json.dumps(req.kondisi),
-                    "drug": json.dumps(req.obat_kimia),
-                    "res": json.dumps(result_group)
-                })
+                new_history = SearchHistory(
+                    wallet_address=req.wallet_address.lower(),
+                    diagnoses=[f"Analisis: {req.query_text[:50]}..."],
+                    symptoms=[],
+                    special_conditions=req.kondisi,
+                    chemical_drugs=req.obat_kimia,
+                    recommendations=result_group
+                )
+                db.add(new_history)
                 db.commit()
-                print(f"💾 [HISTORY] Tersimpan untuk: {req.wallet_address}")
+                print(f"💾 [HISTORY] Tersimpan via ORM untuk: {req.wallet_address}")
             except Exception as e:
                 db.rollback()
                 print(f"⚠️ [HISTORY] Gagal simpan: {e}")
@@ -1157,7 +1211,7 @@ def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
         return [{
             "id": r[0], "diagnoses": r[1], "symptoms": r[2], "special_conditions": r[3],
             "chemical_drugs": r[4], "recommendations": r[5],
-            "created_at": r[6].isoformat() if r[6] else None,
+            "created_at": (r[6].strftime("%Y-%m-%dT%H:%M:%S") + "Z") if r[6] else None,
             "blockchain_tx_hash": r[7],
             "blockchain_record_id": r[8],
             "is_on_blockchain": r[7] is not None
