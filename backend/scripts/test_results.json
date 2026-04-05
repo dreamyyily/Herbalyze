@@ -1,0 +1,372 @@
+{
+  "summary": {
+    "total": 15,
+    "correct": 8,
+    "accuracy": 0.5333,
+    "avg_precision": 0.6222,
+    "avg_recall": 0.6667,
+    "avg_f1": 0.6089
+  },
+  "per_category": {
+    "Exact Match": {
+      "correct": 4,
+      "total": 4,
+      "avg_f1": 1.0
+    },
+    "AI Synonym": {
+      "correct": 1,
+      "total": 5,
+      "avg_f1": 0.2
+    },
+    "Safety Filter": {
+      "correct": 2,
+      "total": 2,
+      "avg_f1": 1.0
+    },
+    "Medical Note": {
+      "correct": 0,
+      "total": 2,
+      "avg_f1": 0.5667
+    },
+    "Negative": {
+      "correct": 1,
+      "total": 2,
+      "avg_f1": 0.5
+    }
+  },
+  "detail": [
+    {
+      "id": "TC-01",
+      "category": "Exact Match",
+      "query": "pasien mengalami diabetes",
+      "expected": [
+        "Diabetes"
+      ],
+      "predicted": [
+        "Diabetes"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 30.8
+    },
+    {
+      "id": "TC-02",
+      "category": "Exact Match",
+      "query": "pasien mengeluh demam",
+      "expected": [
+        "Demam"
+      ],
+      "predicted": [
+        "Demam"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 11097.1
+    },
+    {
+      "id": "TC-03",
+      "category": "Exact Match",
+      "query": "pasien didiagnosis hipertensi dan mengalami sakit kepala",
+      "expected": [
+        "Hipertensi",
+        "Sakit kepala"
+      ],
+      "predicted": [
+        "Hipertensi",
+        "Sakit kepala"
+      ],
+      "metrics": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 24.8
+    },
+    {
+      "id": "TC-04",
+      "category": "Exact Match",
+      "query": "mengidap maag",
+      "expected": [
+        "Maag"
+      ],
+      "predicted": [
+        "Maag"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 19.5
+    },
+    {
+      "id": "TC-05",
+      "category": "AI Synonym",
+      "query": "pasien menderita kencing manis",
+      "expected": [
+        "Diabetes"
+      ],
+      "predicted": [
+        "Gangguan pencernaan"
+      ],
+      "metrics": {
+        "TP": 0,
+        "FP": 1,
+        "FN": 1,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "correct": false
+      },
+      "response_ms": 10644.9
+    },
+    {
+      "id": "TC-06",
+      "category": "AI Synonym",
+      "query": "tekanan darahnya tinggi sekali",
+      "expected": [
+        "Hipertensi"
+      ],
+      "predicted": [
+        "Tekanan darah tinggi"
+      ],
+      "metrics": {
+        "TP": 0,
+        "FP": 1,
+        "FN": 1,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "correct": false
+      },
+      "response_ms": 12644.4
+    },
+    {
+      "id": "TC-07",
+      "category": "AI Synonym",
+      "query": "perut bagian lambung terasa perih",
+      "expected": [
+        "Maag"
+      ],
+      "predicted": [
+        "Mual"
+      ],
+      "metrics": {
+        "TP": 0,
+        "FP": 1,
+        "FN": 1,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "correct": false
+      },
+      "response_ms": 11372.2
+    },
+    {
+      "id": "TC-08",
+      "category": "AI Synonym",
+      "query": "BAB cair terus menerus alias mencret",
+      "expected": [
+        "Diare"
+      ],
+      "predicted": [
+        "Diare"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 11509.6
+    },
+    {
+      "id": "TC-09",
+      "category": "AI Synonym",
+      "query": "kadar kolesterol pasien sangat tinggi",
+      "expected": [
+        "Kolesterol"
+      ],
+      "predicted": [
+        "Kolesterol tinggi"
+      ],
+      "metrics": {
+        "TP": 0,
+        "FP": 1,
+        "FN": 1,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "correct": false
+      },
+      "response_ms": 10747.3
+    },
+    {
+      "id": "TC-10",
+      "category": "Safety Filter",
+      "query": "pasien mengalami mual",
+      "expected": [
+        "Mual"
+      ],
+      "predicted": [
+        "Mual"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 21.6
+    },
+    {
+      "id": "TC-11",
+      "category": "Safety Filter",
+      "query": "anak demam tinggi",
+      "expected": [
+        "Demam"
+      ],
+      "predicted": [
+        "Demam"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 11157.7
+    },
+    {
+      "id": "TC-12",
+      "category": "Medical Note",
+      "query": "pasien didiagnosis dengan diabetes mellitus tipe 2 disertai hipertensi dan mengeluhkan sering pusing",
+      "expected": [
+        "Diabetes",
+        "Hipertensi",
+        "Pusing"
+      ],
+      "predicted": [
+        "Hipertensi",
+        "Type 2 diabetes",
+        "Gangguan kognitif"
+      ],
+      "metrics": {
+        "TP": 1,
+        "FP": 2,
+        "FN": 2,
+        "TN": 0,
+        "precision": 0.3333333333333333,
+        "recall": 0.3333333333333333,
+        "f1": 0.3333333333333333,
+        "correct": false
+      },
+      "response_ms": 11743.9
+    },
+    {
+      "id": "TC-13",
+      "category": "Medical Note",
+      "query": "pasien mengalami batuk, pilek, dan demam",
+      "expected": [
+        "Batuk",
+        "Pilek",
+        "Demam"
+      ],
+      "predicted": [
+        "Batuk",
+        "Demam"
+      ],
+      "metrics": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 1,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 0.6666666666666666,
+        "f1": 0.8,
+        "correct": false
+      },
+      "response_ms": 10828.6
+    },
+    {
+      "id": "TC-14",
+      "category": "Negative",
+      "query": "pasien ingin konsultasi soal keuangan",
+      "expected": [],
+      "predicted": [],
+      "metrics": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 1,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "correct": true
+      },
+      "response_ms": 11406.7
+    },
+    {
+      "id": "TC-15",
+      "category": "Negative",
+      "query": "pasien mengalami sindrom tourette",
+      "expected": [],
+      "predicted": [
+        "Sindrom metabolik"
+      ],
+      "metrics": {
+        "TP": 0,
+        "FP": 1,
+        "FN": 0,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 1.0,
+        "f1": 0.0,
+        "correct": false
+      },
+      "response_ms": 11389.9
+    }
+  ]
+}

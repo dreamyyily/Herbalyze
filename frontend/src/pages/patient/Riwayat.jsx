@@ -6,17 +6,21 @@ const API = "http://localhost:8000";
 // ─── Format tanggal ke Bahasa Indonesia ───────────────────────────────────────
 const formatTanggal = (iso) => {
   if (!iso) return "—";
+  let isoStr = iso.includes("T") ? iso : iso.replace(" ", "T");
+  if (!isoStr.endsWith("Z") && !isoStr.includes("+")) isoStr += "Z";
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric", month: "long", year: "numeric",
     hour: "2-digit", minute: "2-digit",
-  }).format(new Date(iso));
+  }).format(new Date(isoStr));
 };
 
 const formatTanggalPendek = (iso) => {
   if (!iso) return "—";
+  let isoStr = iso.includes("T") ? iso : iso.replace(" ", "T");
+  if (!isoStr.endsWith("Z") && !isoStr.includes("+")) isoStr += "Z";
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric", month: "short", year: "numeric",
-  }).format(new Date(iso));
+  }).format(new Date(isoStr));
 };
 
 // ─── Star Icon ────────────────────────────────────────────────────────────────
@@ -424,6 +428,34 @@ function RiwayatCard({ hist, index, onDelete, onSelectHerb, isFavorite, onToggle
   );
 }
 
+// ─── Filter waktu: periode tetap (kalender lokal browser) ─────────────────────
+// Opsi 1 — Minggu Ini: tanggal_rekam >= (tengah malam hari ini − 7 hari kalender)
+//          Bulan Ini:   tanggal_rekam >= (tengah malam hari ini − 30 hari kalender)
+// Tidak pakai label dinamis; batas bawah dihitung sekali dari “hari ini”.
+function parseHistoryDate(isoOrDb) {
+  if (!isoOrDb) return null;
+  let s = String(isoOrDb).trim();
+  if (s.includes(" ") && !s.includes("T")) s = s.replace(" ", "T");
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function startOfLocalCalendarDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** true jika tanggal kalender (lokal) rekaman >= (hari ini lokal − daysBack) dan tidak di masa depan */
+function matchesPeriodFromToday(createdAt, daysBack) {
+  const recordDate = parseHistoryDate(createdAt);
+  if (!recordDate) return false;
+  const now = new Date();
+  const todayStart = startOfLocalCalendarDay(now);
+  const lowerBound = new Date(todayStart);
+  lowerBound.setDate(lowerBound.getDate() - daysBack);
+  const recordDay = startOfLocalCalendarDay(recordDate);
+  return recordDay >= lowerBound && recordDate <= now;
+}
+
 // ─── localStorage helpers untuk favorites ─────────────────────────────────────
 const FAV_KEY = "herbalyze_riwayat_favorites";
 
@@ -482,6 +514,15 @@ export default function Riwayat() {
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
+  // Segarkan riwayat saat kembali ke tab/halaman (agar terasa "real time" setelah cari di tab lain)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchHistory();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchHistory]);
+
   // Auto-dismiss notif
   useEffect(() => {
     if (notification) {
@@ -513,10 +554,14 @@ export default function Riwayat() {
     if (timeFilter === "favorit") return matchesSearch && favorites.has(hist.id);
 
     let matchesTime = true;
-    if (timeFilter !== "semua" && hist.created_at) {
-      const diffDays = Math.ceil(Math.abs(new Date() - new Date(hist.created_at)) / (1000 * 60 * 60 * 24));
-      if (timeFilter === "7hari")  matchesTime = diffDays <= 7;
-      if (timeFilter === "30hari") matchesTime = diffDays <= 30;
+    if (timeFilter !== "semua" && timeFilter !== "favorit") {
+      if (!hist.created_at) {
+        matchesTime = false;
+      } else if (timeFilter === "minggu") {
+        matchesTime = matchesPeriodFromToday(hist.created_at, 7);
+      } else if (timeFilter === "bulan") {
+        matchesTime = matchesPeriodFromToday(hist.created_at, 30);
+      }
     }
 
     return matchesSearch && matchesTime;
@@ -633,11 +678,11 @@ export default function Riwayat() {
             </div>
 
             {/* Time filter tabs — sekarang termasuk Favorit */}
-            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 gap-1">
+            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 gap-1 flex-wrap sm:flex-nowrap">
               {[
                 { id: "semua",   label: "Semua" },
-                { id: "7hari",   label: "7 Hari" },
-                { id: "30hari",  label: "30 Hari" },
+                { id: "minggu",  label: "Minggu Ini" },
+                { id: "bulan",   label: "Bulan Ini" },
                 { id: "favorit", label: "⭐ Favorit" },
               ].map((btn) => (
                 <button
