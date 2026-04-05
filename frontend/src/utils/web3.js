@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-export const CONTRACT_ADDRESS = "0xC7B5AAa381e42B1bCf036465969E3f514f9aE4Db";
+export const CONTRACT_ADDRESS = "0x9B09085aB45f6Fcff0bF3E68F4A28785811EE5a5";
 export const CONTRACT_ABI = [
   // === Role Management (Admin) ===
   "function approveUser(address _user) public",

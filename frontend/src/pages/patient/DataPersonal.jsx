@@ -41,7 +41,6 @@ export default function DataPersonal() {
   };
 
   const [doctorRequest, setDoctorRequest] = useState({ nomorSTR: "", institusi: "", dokumen: null });
-  const [strError, setStrError] = useState("");
   const [isEditInstansiOpen, setIsEditInstansiOpen] = useState(false);
   const [newInstansi, setNewInstansi] = useState("");
   const [isSubmittingInstansi, setIsSubmittingInstansi] = useState(false);
@@ -148,24 +147,7 @@ export default function DataPersonal() {
     setIsDoctorModalOpen(true);
   };
 
-  const handleDoctorChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "nomorSTR") {
-      // Tolak karakter spasi, simbol, huruf. Hanya izinkan angka murni (0-9).
-      if (value !== "" && !/^\d+$/.test(value)) return;
-      // Tolak jika melebihi 16 digit
-      if (value.length > 16) return;
-      // Validasi dan set pesan error
-      if (value.length === 0) {
-        setStrError("Nomor STR wajib diisi dengan angka.");
-      } else if (value.length < 16) {
-        setStrError(`Validasi gagal: Masih kurang ${16 - value.length} digit. (Harus tepat 16 digit angka)`);
-      } else {
-        setStrError(""); // Valid!
-      }
-    }
-    setDoctorRequest((prev) => ({ ...prev, [name]: value.toUpperCase() }));
-  };
+  const handleDoctorChange = (e) => { const { name, value } = e.target; setDoctorRequest((prev) => ({ ...prev, [name]: value })); };
   const handleDoctorFile = (e) => { const file = e.target.files[0]; if (file) setDoctorRequest((prev) => ({ ...prev, dokumen: file })); };
 
   // --- FUNGSI REQUEST DOKTER ---
@@ -194,7 +176,6 @@ export default function DataPersonal() {
       setDoctorRequest({ nomorSTR: "", institusi: "", dokumen: null }); 
       setIsDoctorModalOpen(false); 
       setFormData(prev => ({...prev, role: 'Pending_Doctor'}));
-      setOriginalData(prev => ({...prev, role: 'Pending_Doctor'}));
 
       showToast('success', 'Pengajuan Berhasil', 'Dokumen STR Anda telah dikirim dan sedang dalam antrean verifikasi Admin.');
 
@@ -217,36 +198,9 @@ export default function DataPersonal() {
 
       if (!response.ok) throw new Error("Gagal mereset status");
       
-      // Ambil ulang data profil dari server untuk memastikan sinkronisasi sempurna
-      const profileRes = await fetch(`http://127.0.0.1:8000/api/profile/${walletAddress}`);
-      if (profileRes.ok) {
-         const data = await profileRes.json();
-         const freshData = {
-          photo: data.foto_profil || null,
-          nik: data.nik || "",
-          nama: data.name || "",
-          tempatLahir: data.tempat_lahir || "",
-          tanggalLahir: data.tanggal_lahir || "",
-          email: data.email || "",
-          nomorHp: data.nomor_hp || "",
-          jenisKelamin: data.jenis_kelamin || "",
-          alergiHerbal: data.alergi_herbal || [],
-          instansi: data.nama_instansi || "",
-          instansi_baru: data.instansi_baru || "", 
-          role: data.role || "Patient",
-          nomor_str: data.nomor_str || "",
-        };
-        setFormData(freshData);
-        setOriginalData(freshData);
-        localStorage.setItem('user_profile', JSON.stringify({
-          name: data.name, role: data.role
-        }));
-      } else {
-        setFormData(prev => ({...prev, role: 'Patient'}));
-        setOriginalData(prev => ({...prev, role: 'Patient'}));
-      }
+      setFormData(prev => ({...prev, role: 'Patient'}));
     } catch (error) {
-      console.error("Kesalahan saat dismiss rejection:", error);
+      console.error(error);
     }
   };
 
@@ -280,7 +234,6 @@ export default function DataPersonal() {
       setNewInstansi("");
       setDokumenSIP(null);
       setFormData(prev => ({ ...prev, role: 'Pending_Doctor', instansi_baru: newInstansi.trim() }));
-      setOriginalData(prev => ({ ...prev, role: 'Pending_Doctor', instansi_baru: newInstansi.trim() }));
       showToast('success', 'Pengajuan Dikirim', 'Perubahan instansi sedang menunggu verifikasi admin.');
     } catch (err) {
       showToast('danger', 'Gagal', err.message);
@@ -319,21 +272,8 @@ export default function DataPersonal() {
 };
 
   const handleSelectChange = (name, value) => {
-    if (name === "alergiHerbal") {
-      const prevValue = formData.alergiHerbal || [];
-      const hasTidakAdaNow = value.includes("Tidak Ada");
-      const hadTidakAdaBefore = prevValue.includes("Tidak Ada");
-
-      if (hasTidakAdaNow && !hadTidakAdaBefore) {
-        // Jika user baru saja mengklik "Tidak Ada", hapus pilihan lain
-        value = ["Tidak Ada"];
-      } else if (hasTidakAdaNow && hadTidakAdaBefore && value.length > 1) {
-        // Jika "Tidak Ada" sudah ada, lalu user klik herbal lain, hapus "Tidak Ada"
-        value = value.filter(item => item !== "Tidak Ada");
-      }
-    }
-    setFormData((prev) => ({ ...prev, [name]: value })); 
-    setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (name === "alergiHerbal" && value.includes("Tidak Ada")) value = ["Tidak Ada"];
+    setFormData((prev) => ({ ...prev, [name]: value })); setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleSimpan = async () => {
@@ -512,34 +452,7 @@ export default function DataPersonal() {
               <div className="flex justify-between items-center mb-6"><h3 className="text-2xl font-extrabold text-dark-50">Pengajuan Akses Dokter</h3><button onClick={() => setIsDoctorModalOpen(false)} className="text-gray-400 hover:text-red-500 text-3xl font-bold leading-none w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 transition">&times;</button></div>
               <p className="text-gray-500 mb-8">Silakan lengkapi data profesi Anda di bawah ini untuk proses validasi legalitas oleh Admin sistem.</p>
               <div className="space-y-6">
-                {/* ─── Field Nomor STR dengan validasi penuh ─── */}
-                <div>
-                  <InputField 
-                    label="Nomor STR (Surat Tanda Registrasi)" 
-                    name="nomorSTR" 
-                    placeholder="Masukkan tepat 16 digit angka" 
-                    value={doctorRequest.nomorSTR} 
-                    onChange={handleDoctorChange}
-                    error={strError}
-                    required
-                  />
-                  <div className="flex justify-between items-center mt-1.5 px-1">
-                    <p className="text-[11px] text-gray-400">Hanya angka murni (0-9), tidak boleh ada huruf, spasi, atau simbol.</p>
-                    <span className={`text-xs font-bold tabular-nums ${
-                      doctorRequest.nomorSTR.length === 16 ? "text-green-500" : strError ? "text-red-400" : "text-gray-400"
-                    }`}>
-                      {doctorRequest.nomorSTR.length}/16
-                    </span>
-                  </div>
-                  {!strError && doctorRequest.nomorSTR.length === 16 && (
-                    <p className="mt-1 px-1 text-xs text-green-600 font-medium flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      Nomor STR valid — 16 digit terpenuhi.
-                    </p>
-                  )}
-                </div>
+                <InputField label="Nomor STR (Surat Tanda Registrasi)" name="nomorSTR" placeholder="Masukkan 16 digit nomor STR" value={doctorRequest.nomorSTR} onChange={handleDoctorChange} />
                 <InputField label="Institusi / Rumah Sakit Utama" name="institusi" placeholder="Contoh: RSUD Sehat Sejahtera" value={doctorRequest.institusi} onChange={handleDoctorChange} />
                 <div>
                   <label className="text-sm font-semibold text-gray-700 block mb-2">Upload Dokumen Pendukung (STR / SIP Aktif)</label>
@@ -552,14 +465,8 @@ export default function DataPersonal() {
                 </div>
               </div>
               <div className="flex gap-4 mt-10">
-                <button onClick={() => { setIsDoctorModalOpen(false); setStrError(""); setDoctorRequest({ nomorSTR: "", institusi: "", dokumen: null }); }} className="flex-1 px-6 py-4 rounded-xl text-gray-600 bg-gray-100 hover:bg-gray-200 font-bold transition">Batal</button>
-                <button
-                  onClick={handleSubmitDoctorRequest}
-                  disabled={doctorRequest.nomorSTR.length !== 16 || !!strError || !doctorRequest.institusi || !doctorRequest.dokumen}
-                  className="flex-1 bg-primary-40 text-white px-6 py-4 rounded-xl font-bold hover:bg-primary-50 shadow-md transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
-                >
-                  Kirim Permintaan
-                </button>
+                <button onClick={() => setIsDoctorModalOpen(false)} className="flex-1 px-6 py-4 rounded-xl text-gray-600 bg-gray-100 hover:bg-gray-200 font-bold transition">Batal</button>
+                <button onClick={handleSubmitDoctorRequest} className="flex-1 bg-primary-40 text-white px-6 py-4 rounded-xl font-bold hover:bg-primary-50 shadow-md transition active:scale-95">Kirim Permintaan</button>
               </div>
             </div>
           </div>
