@@ -21,11 +21,13 @@ from fastapi.encoders import jsonable_encoder
 from blockchain_service import approve_wallet_on_chain, add_medical_record_on_chain
 from datetime import datetime
 from dotenv import load_dotenv
-import requests
+import json as _json_lib
 
 load_dotenv()
 PINATA_JWT = os.getenv("PINATA_JWT")
 print("PINATA_JWT loaded:", PINATA_JWT[:20])
+
+_CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
 
 
 # ==============================================================================
@@ -47,6 +49,22 @@ def upload_to_ipfs(file):
         raise Exception("Upload ke IPFS gagal")
     return response.json()["IpfsHash"]
 
+# ==============================================================================
+# Load stopwords dan protected terms untuk NLP filtering
+# ==============================================================================
+
+def _load_json_config(filename: str, key: str) -> list:
+    try:
+        path = os.path.join(_CONFIG_DIR, filename)
+        with open(path, "r", encoding="utf-8") as f:
+            return _json_lib.load(f).get(key, [])
+    except Exception as e:
+        print(f"⚠️ Gagal load config '{filename}': {e}")
+        return []
+
+NLP_STOPWORDS       = set(_load_json_config("stopwords.json",       "stopwords"))
+
+print(NLP_STOPWORDS)  
 
 # ==============================================================================
 # GLOBAL UTILITY FUNCTIONS
@@ -759,20 +777,38 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
 
         # ── NLP CHUNKING ──
         print(f"\n🧩 [NLP] Memecah kalimat input...")
-        delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b'
+
+        NEGATION_WORDS = {"tidak", "tanpa", "bukan", "belum", "tidak ada", "tidak mengalami"}
+
+        delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b|\bbersama\b|\bplus\b|\bditambah\b|\bselain itu\b|\blainnya\b|\btermasuk\b|\bseperti\b|\bserta|\btetapi\b'
         raw_chunks = re.split(delimiters, query_clean)
-        stop_words = ["pasien","mengeluhkan","gejala","ditemukan","adanya","ada","terdapat",
-                      "diagnosis","didiagnosis","yang","di","ke","dari","ini","itu","nya",
-                      "ialah","adalah","alami","mengidap","penyakit","mengalami","juga","seharusnya"]
+
         clean_chunks = []
+        skipped_chunks = []
+
         for chunk in raw_chunks:
-            temp = chunk
-            for word in stop_words:
-                temp = re.sub(rf'\b{word}\b', '', temp)
-            temp = " ".join(re.sub(r'[^\w\s]', '', temp).split())
-            if len(temp) > 2:
-                clean_chunks.append(temp)
-        print(f"   Hasil chunks : {clean_chunks}")
+            temp = chunk.strip()
+            if not temp:
+                continue
+
+            words = re.sub(r'[^\w\s]', '', temp).split()
+
+            # Deteksi negasi: cek apakah ada kata negasi di dalam chunk ini
+            has_negation = any(w in NEGATION_WORDS for w in words)
+            if has_negation:
+                skipped_chunks.append(temp)
+                print(f"   ⛔ [NEGASI] Chunk '{temp}' dilewati karena mengandung kata negasi.")
+                continue
+
+            # Filter stopwords biasa
+            filtered_words = [w for w in words if w not in NLP_STOPWORDS]
+            result = " ".join(filtered_words).strip()
+            if len(result) > 2:
+                clean_chunks.append(result)
+
+        print(f"   Hasil chunks         : {clean_chunks}")
+        if skipped_chunks:
+            print(f"   Chunk diabaikan      : {skipped_chunks}")
 
         grouped_data = {}
         chunks_to_ai = []
