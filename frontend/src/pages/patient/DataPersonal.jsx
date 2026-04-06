@@ -151,15 +151,15 @@ export default function DataPersonal() {
   const handleDoctorChange = (e) => {
     const { name, value } = e.target;
     if (name === "nomorSTR") {
-      // Tolak karakter spasi, simbol, huruf. Hanya izinkan angka murni (0-9).
-      if (value !== "" && !/^\d+$/.test(value)) return;
-      // Tolak jika melebihi 16 digit
+      // Tolak spasi dan simbol. Hanya izinkan huruf dan angka.
+      if (value !== "" && !/^[A-Za-z0-9]+$/.test(value)) return;
+      // Tolak jika melebihi 16 karakter
       if (value.length > 16) return;
       // Validasi dan set pesan error
       if (value.length === 0) {
-        setStrError("Nomor STR wajib diisi dengan angka.");
+        setStrError("Nomor STR wajib diisi.");
       } else if (value.length < 16) {
-        setStrError(`Validasi gagal: Masih kurang ${16 - value.length} digit. (Harus tepat 16 digit angka)`);
+        setStrError(`Validasi gagal: Masih kurang ${16 - value.length} karakter. (Harus tepat 16 karakter huruf/angka)`);
       } else {
         setStrError(""); // Valid!
       }
@@ -517,14 +517,14 @@ export default function DataPersonal() {
                   <InputField 
                     label="Nomor STR (Surat Tanda Registrasi)" 
                     name="nomorSTR" 
-                    placeholder="Masukkan tepat 16 digit angka" 
+                    placeholder="Masukkan 16 karakter (Huruf / Angka)" 
                     value={doctorRequest.nomorSTR} 
                     onChange={handleDoctorChange}
                     error={strError}
                     required
                   />
                   <div className="flex justify-between items-center mt-1.5 px-1">
-                    <p className="text-[11px] text-gray-400">Hanya angka murni (0-9), tidak boleh ada huruf, spasi, atau simbol.</p>
+                    <p className="text-[11px] text-gray-400">Boleh menggunakan kombinasi huruf dan angka tanpa spasi.</p>
                     <span className={`text-xs font-bold tabular-nums ${
                       doctorRequest.nomorSTR.length === 16 ? "text-green-500" : strError ? "text-red-400" : "text-gray-400"
                     }`}>
@@ -536,7 +536,7 @@ export default function DataPersonal() {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      Nomor STR valid — 16 digit terpenuhi.
+                      Nomor STR valid — 16 karakter terpenuhi.
                     </p>
                   )}
                 </div>

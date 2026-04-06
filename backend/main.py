@@ -21,6 +21,7 @@ from fastapi.encoders import jsonable_encoder
 from blockchain_service import approve_wallet_on_chain, add_medical_record_on_chain
 from datetime import datetime
 from dotenv import load_dotenv
+import requests
 import json as _json_lib
 
 load_dotenv()
