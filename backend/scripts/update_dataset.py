@@ -1,3 +1,4 @@
+import datetime
 import sys
 import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -217,7 +218,7 @@ def rebuild_chromadb():
         model = SentenceTransformer('intfloat/multilingual-e5-small')
         
         # WAJIB UNTUK MODEL E5: Tambahkan prefix "query: "
-        texts_to_embed = [f"query: {text}" for text in df['combined_text'].tolist()]
+        texts_to_embed = [f"passage: {text}" for text in df['combined_text'].tolist()]
         
         print(f"Proses embedding {len(df)} teks... (sabar ya)")
         embeddings = model.encode(texts_to_embed, show_progress_bar=True).tolist()
@@ -285,7 +286,7 @@ def rebuild_kamus_medis_chromadb(mode="pure_sbert"):
         else:
             print(f"[INFO] Mode Pure SBERT: {len(df_dasar)} label baku saja (tanpa kamus sinonim)")
 
-        texts = [f"query: {doc}" for doc in documents]
+        texts = [f"passage: {doc}" for doc in documents]
         embeddings = model.encode(texts, show_progress_bar=True).tolist()
 
         chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
@@ -313,16 +314,37 @@ def rebuild_kamus_medis_chromadb(mode="pure_sbert"):
     except Exception as e:
         print(f"[GAGAL] Rebuild Kamus: {e}")
         return False
+    
+def save_active_mode(mode: str):
+    """Simpan mode aktif ke config agar main.py bisa membacanya."""
+    config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
+    os.makedirs(config_dir, exist_ok=True)
+    config_path = os.path.join(config_dir, "active_mode.json")
+    
+    try:
+        with open(config_path, "w", encoding="utf-8") as f:
+            import json as _j
+            _j.dump({
+                "mode": mode,
+                "description": "pure_sbert | rag | hybrid_rag",
+                "updated_at": datetime.datetime.now().isoformat()   # ← Pakai datetime.datetime
+            }, f, indent=2)
+        
+        print(f"[OK] Mode '{mode}' berhasil disimpan ke: {config_path}")
+        return config_path
+        
+    except Exception as e:
+        print(f"[GAGAL] Gagal menyimpan active_mode.json: {e}")
+        return None
+
 
 if __name__ == "__main__":
     print("="*55)
     print("  HERBALYZE - UPDATE DATASET")
     print("="*55)
 
-    # ✅ GANTI DI SINI untuk memilih mode
-    # "pure_sbert" → hanya label baku dari diagnosis & gejala
-    # "rag"        → label baku + sinonim kamus medis
-    ACTIVE_MODE = "rag"  # Ubah ke "rag" jika ingin mode RAG dengan sinonim kamus
+    # ✅ GANTI MODE DI SINI
+    ACTIVE_MODE = "pure_sbert"   # pure_sbert | rag | hybrid_rag
 
     print(f"\n🔧 Mode aktif: {ACTIVE_MODE.upper()}")
 
@@ -331,9 +353,27 @@ if __name__ == "__main__":
 
     reset_chromadb()
     ok_herbal = rebuild_chromadb()
-    ok_kamus = rebuild_kamus_medis_chromadb(mode=ACTIVE_MODE)
+
+    # Tentukan isi ChromaDB med_labels
+    if ACTIVE_MODE == "pure_sbert":
+        ok_kamus = rebuild_kamus_medis_chromadb(mode="pure_sbert")
+    else:
+        ok_kamus = rebuild_kamus_medis_chromadb(mode="rag")   # rag & hybrid_rag pakai sinonim
 
     if ok_herbal and ok_kamus:
+        saved_path = save_active_mode(ACTIVE_MODE)
+        
         print(f"\n✅ SELESAI! Mode {ACTIVE_MODE} aktif.")
+        
+        if saved_path and os.path.exists(saved_path):
+            print(f"[DEBUG] Config path: {saved_path}")
+            try:
+                with open(saved_path, "r", encoding="utf-8") as f:
+                    print("[DEBUG] Isi active_mode.json:")
+                    print(f.read())
+            except Exception as e:
+                print(f"[DEBUG] Gagal membaca file: {e}")
+        else:
+            print("[WARN] save_active_mode gagal atau path tidak valid")
     else:
         print("\n⚠️ Selesai dengan catatan error.")
