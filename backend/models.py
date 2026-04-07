@@ -15,6 +15,7 @@ class User(Base):
     nomor_str = Column(String(100), nullable=True)
     nama_instansi = Column(String(255), nullable=True)
     dokumen_str_path = Column(String(500), nullable=True)
+    dokumen_sip_path = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     nik = Column(String(20), nullable=True)
     tempat_lahir = Column(String(100), nullable=True)
