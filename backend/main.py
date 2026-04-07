@@ -66,6 +66,28 @@ NLP_STOPWORDS       = set(_load_json_config("stopwords.json",       "stopwords")
 
 print(NLP_STOPWORDS)  
 
+def _get_active_mode() -> str:
+    try:
+        path = os.path.join(_CONFIG_DIR, "active_mode.json")
+        print(f"[DEBUG] Mencoba membaca mode dari: {path}")
+        
+        if not os.path.exists(path):
+            print(f"[WARN] File active_mode.json tidak ditemukan di {path}. Gunakan default hybrid_rag")
+            return "hybrid_rag"
+            
+        with open(path, "r", encoding="utf-8") as f:
+            data = _json_lib.load(f)
+            mode = data.get("mode", "hybrid_rag")
+            print(f"[DEBUG] Berhasil membaca mode: {mode.upper()}")
+            return mode
+            
+    except Exception as e:
+        print(f"[WARN] Gagal membaca active_mode.json: {e}. Gunakan default hybrid_rag")
+        return "hybrid_rag"
+
+ACTIVE_MODE = _get_active_mode()
+print(f"✅ Mode aktif: {ACTIVE_MODE.upper()}")
+
 # ==============================================================================
 # GLOBAL UTILITY FUNCTIONS
 # ==============================================================================
@@ -740,6 +762,8 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
 @app.post("/api/recommend_hybrid")
 async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
     start_total = time.time()
+    print(f"[DEBUG] ACTIVE_MODE dari config: {ACTIVE_MODE}")
+    print(f"[DEBUG] Path config: {_CONFIG_DIR}")
     print(f"\n{'='*70}")
     print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI HYBRID (SQL + SBERT)")
     print(f"📥 Input Teks : '{req.query_text}'")
@@ -777,10 +801,12 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
 
         # ── NLP CHUNKING ──
         print(f"\n🧩 [NLP] Memecah kalimat input...")
+        print(f"   Mode aktif : {ACTIVE_MODE.upper()}")
 
-        NEGATION_WORDS = {"tidak", "tanpa", "bukan", "belum", "tidak ada", "tidak mengalami"}
+        NEGATION_WORDS = {"tidak", "tanpa", "bukan", "belum", "ga"}
+        NEGATION_PHRASES = ["tidak ada", "tidak mengalami", "tidak pernah", "belum pernah"]
 
-        delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b|\bbersama\b|\bplus\b|\bditambah\b|\bselain itu\b|\blainnya\b|\btermasuk\b|\bseperti\b|\bserta|\btetapi\b'
+        delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b|\bbersama\b|\bplus\b|\bditambah\b|\bselain itu\b|\blainnya\b|\btermasuk\b|\bseperti\b|\btetapi\b'
         raw_chunks = re.split(delimiters, query_clean)
 
         clean_chunks = []
@@ -790,88 +816,105 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             temp = chunk.strip()
             if not temp:
                 continue
-
             words = re.sub(r'[^\w\s]', '', temp).split()
 
-            # Deteksi negasi: cek apakah ada kata negasi di dalam chunk ini
-            has_negation = any(w in NEGATION_WORDS for w in words)
+            # Cek negasi (kata tunggal + frasa)
+            has_negation = (
+                any(w in NEGATION_WORDS for w in words) or
+                any(phrase in temp for phrase in NEGATION_PHRASES)
+            )
             if has_negation:
                 skipped_chunks.append(temp)
-                print(f"   ⛔ [NEGASI] Chunk '{temp}' dilewati karena mengandung kata negasi.")
+                print(f"   ⛔ [NEGASI] '{temp}' dilewati.")
                 continue
 
-            # Filter stopwords biasa
             filtered_words = [w for w in words if w not in NLP_STOPWORDS]
             result = " ".join(filtered_words).strip()
             if len(result) > 2:
                 clean_chunks.append(result)
 
-        print(f"   Hasil chunks         : {clean_chunks}")
+        print(f"   Hasil chunks    : {clean_chunks}")
         if skipped_chunks:
-            print(f"   Chunk diabaikan      : {skipped_chunks}")
+            print(f"   Chunk diabaikan : {skipped_chunks}")
 
-        grouped_data = {}
-        chunks_to_ai = []
+        grouped_data  = {}
+        chunks_to_ai  = []
 
-        # ── LAPIS 1: SQL EXACT MATCH ──
-        start_l1 = time.time()
-        print(f"\n{'─'*60}")
-        print(f"🔍 [LAPIS 1] SQL EXACT MATCHING")
-        print(f"{'─'*60}")
+        # ══════════════════════════════════════════════════════════════════
+        # LAPIS 1: SQL EXACT MATCH
+        # Hanya dijalankan pada mode: hybrid_rag
+        # Dilewati pada mode: pure_sbert, rag
+        # ══════════════════════════════════════════════════════════════════
+        if ACTIVE_MODE == "hybrid_rag":
+            start_l1 = time.time()
+            print(f"\n{'─'*60}")
+            print(f"🔍 [LAPIS 1] SQL EXACT MATCHING (mode: {ACTIVE_MODE})")
+            print(f"{'─'*60}")
 
-        for chunk in clean_chunks:
-            print(f"\n   🔎 Mencari: '{chunk}'")
-            diag_db = db.execute(text("SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
-            symp_db = db.execute(text("SELECT herbal_name FROM herbal_symptoms  WHERE TRIM(symptom)   ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
+            for chunk in clean_chunks:
+                print(f"\n   🔎 Mencari: '{chunk}'")
+                diag_db = db.execute(text("SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
+                symp_db = db.execute(text("SELECT herbal_name FROM herbal_symptoms  WHERE TRIM(symptom)   ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
 
-            if diag_db or symp_db:
-                print(f"   ✅ Ditemukan sebagai {'Diagnosis' if diag_db else 'Gejala'}")
-                baku_name = chunk.strip().capitalize()
-                db_res    = diag_db if diag_db else symp_db
-
-                # ✅ Global helper — return (details_final, all_unsafe)
-                herbs_list, unsafe_list = apply_all_filters_global(
-                    {row[0] for row in db_res}, baku_name, sel_cond, user_allergies, db
-                )
-
-                if herbs_list or unsafe_list:
-                    if baku_name not in grouped_data:
-                        grouped_data[baku_name] = {
-                            "group_type": "Diagnosis" if diag_db else "Gejala",
-                            "group_name": baku_name,
-                            "herbs": herbs_list,
-                            "unsafe_herbs": unsafe_list,
-                            "detected_from_list": [chunk]
-                        }
+                if diag_db or symp_db:
+                    print(f"   ✅ Ditemukan sebagai {'Diagnosis' if diag_db else 'Gejala'}")
+                    baku_name = chunk.strip().capitalize()
+                    db_res    = diag_db if diag_db else symp_db
+                    herbs_list, unsafe_list = apply_all_filters_global(
+                        {row[0] for row in db_res}, baku_name, sel_cond, user_allergies, db
+                    )
+                    if herbs_list or unsafe_list:
+                        if baku_name not in grouped_data:
+                            grouped_data[baku_name] = {
+                                "group_type": "Diagnosis" if diag_db else "Gejala",
+                                "group_name": baku_name,
+                                "herbs": herbs_list,
+                                "unsafe_herbs": unsafe_list,
+                                "detected_from_list": [chunk]
+                            }
+                        else:
+                            if chunk not in grouped_data[baku_name]["detected_from_list"]:
+                                grouped_data[baku_name]["detected_from_list"].append(chunk)
+                            existing_safe   = {h["name"] for h in grouped_data[baku_name]["herbs"]}
+                            existing_unsafe = {u["name"] for u in grouped_data[baku_name]["unsafe_herbs"]}
+                            for herb in herbs_list:
+                                if herb["name"] not in existing_safe:
+                                    grouped_data[baku_name]["herbs"].append(herb)
+                            for u in unsafe_list:
+                                if u["name"] not in existing_unsafe:
+                                    grouped_data[baku_name]["unsafe_herbs"].append(u)
                     else:
-                        if chunk not in grouped_data[baku_name]["detected_from_list"]:
-                            grouped_data[baku_name]["detected_from_list"].append(chunk)
-
-                        existing_safe = {h["name"] for h in grouped_data[baku_name]["herbs"]}
-                        for herb in herbs_list:
-                            if herb["name"] not in existing_safe:
-                                grouped_data[baku_name]["herbs"].append(herb)
-
-                        existing_unsafe = {u["name"] for u in grouped_data[baku_name]["unsafe_herbs"]}
-                        for u in unsafe_list:
-                            if u["name"] not in existing_unsafe:
-                                grouped_data[baku_name]["unsafe_herbs"].append(u)
+                        print(f"   ⚠️ Semua herbal '{chunk}' dieliminasi filter.")
                 else:
-                    print(f"   ⚠️ Tidak ada hasil aman maupun unsafe untuk '{chunk}'.")
-            else:
-                print(f"   ❌ Tidak ditemukan → dikirim ke Lapis 2 (SBERT)")
-                chunks_to_ai.append(chunk)
+                    print(f"   ❌ Tidak ditemukan SQL → ke Lapis 2")
+                    chunks_to_ai.append(chunk)
 
-        print(f"\n⏱️  Lapis 1 selesai: {(time.time() - start_l1)*1000:.2f} ms")
+            print(f"\n⏱️  Lapis 1 selesai: {(time.time() - start_l1)*1000:.2f} ms")
 
-        # ── LAPIS 2: SBERT ──
+        else:
+            # pure_sbert / rag → semua chunk langsung ke Lapis 2
+            chunks_to_ai = clean_chunks
+            print(f"\n⏭️  [LAPIS 1] DILEWATI (mode: {ACTIVE_MODE}) → semua chunk ke Lapis 2")
+
+        # ══════════════════════════════════════════════════════════════════
+        # LAPIS 2: SBERT / RAG SEMANTIC MATCHING
+        # Selalu dijalankan untuk semua mode
+        # Isi ChromaDB (pure vs sinonim) sudah ditentukan saat update_dataset
+        # ══════════════════════════════════════════════════════════════════
         final_result_groups = []
 
         if chunks_to_ai:
             start_l2 = time.time()
+            mode_label = {
+                "pure_sbert":  "PURE SBERT (tanpa sinonim)",
+                "rag":         "RAG (dengan sinonim kamus)",
+                "hybrid_rag":  "HYBRID RAG (fallback dari SQL)"
+            }.get(ACTIVE_MODE, ACTIVE_MODE.upper())
+
             print(f"\n{'─'*60}")
-            print(f"🧠 [LAPIS 2] SBERT SEMANTIC MATCHING")
+            print(f"🧠 [LAPIS 2] {mode_label}")
             print(f"{'─'*60}")
+
             from sentence_transformers import SentenceTransformer
             import chromadb
             model_ai      = SentenceTransformer('intfloat/multilingual-e5-small')
@@ -898,7 +941,6 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                             SELECT herbal_name FROM herbal_symptoms  WHERE TRIM(symptom)   ILIKE TRIM(:q)
                         """), {"q": label_baku}).fetchall()
 
-                        # ✅ Global helper — return (details_final, all_unsafe)
                         herbs_ai_list, unsafe_ai_list = apply_all_filters_global(
                             {r[0] for r in ai_db}, baku_cap, sel_cond, user_allergies, db
                         )
@@ -915,20 +957,23 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                             else:
                                 if chunk not in grouped_data[baku_cap]["detected_from_list"]:
                                     grouped_data[baku_cap]["detected_from_list"].append(chunk)
-
-                                existing_safe = {h["name"] for h in grouped_data[baku_cap]["herbs"]}
+                                existing_safe   = {h["name"] for h in grouped_data[baku_cap]["herbs"]}
+                                existing_unsafe = {u["name"] for u in grouped_data[baku_cap]["unsafe_herbs"]}
                                 for herb in herbs_ai_list:
                                     if herb["name"] not in existing_safe:
                                         grouped_data[baku_cap]["herbs"].append(herb)
-
-                                existing_unsafe = {u["name"] for u in grouped_data[baku_cap]["unsafe_herbs"]}
                                 for u in unsafe_ai_list:
                                     if u["name"] not in existing_unsafe:
                                         grouped_data[baku_cap]["unsafe_herbs"].append(u)
                         else:
-                            print(f"   ⚠️ Tidak ada hasil aman maupun unsafe untuk '{label_baku}'.")
+                            print(f"   ⚠️ Tidak ada hasil untuk '{label_baku}'.")
                     else:
                         print(f"   ⚠️ Ditolak (similarity {similarity:.2f}% < 88%).")
+
+            print(f"\n⏱️  Lapis 2 selesai: {(time.time() - start_l2)*1000:.2f} ms")
+
+        elif ACTIVE_MODE in ("pure_sbert", "rag") and not chunks_to_ai:
+            print(f"\n⚠️ Tidak ada chunk yang bisa dianalisis setelah filter negasi/stopword.")
 
             print(f"\n⏱️  Lapis 2 selesai: {(time.time() - start_l2)*1000:.2f} ms")
 
