@@ -364,11 +364,15 @@ export default function DataPersonal() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Gagal menyimpan profil");
 
+      localStorage.setItem('user_profile_complete', JSON.stringify(true));
+
       localStorage.setItem('user_profile', JSON.stringify({
         name: formData.nama, role: formData.role,
       }));
 
-      if (location.state?.fromHomeLock) {
+      if (location.state?.fromProfileIncomplete) {
+        navigate("/home", { state: { profileUpdated: true } });
+      } else if (location.state?.fromHomeLock) {
         navigate("/", { state: { profileUpdated: true } });
       } else {
         setOriginalData({ ...formData });

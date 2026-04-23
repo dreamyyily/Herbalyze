@@ -22,7 +22,6 @@ export default function Home() {
 
   const navigate = useNavigate();
   const location = useLocation(); 
-  const [showProfileWarning, setShowProfileWarning] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false); 
   
   const resultRef = useRef(null);
@@ -34,44 +33,11 @@ export default function Home() {
     fetchDiagnoses();
     fetchSymptoms();
 
-    const checkProfileStatus = async () => {
-      const userWallet = localStorage.getItem('user_wallet');
-      if (!userWallet) {
-        setShowProfileWarning(true); // If no wallet, profile is incomplete
-        return;
-      }
-
-      try {
-        const res = await fetch(`http://localhost:8000/api/profile/${userWallet}`);
-        if (!res.ok) {
-          // If profile not found or other error, treat as incomplete
-          setShowProfileWarning(true);
-          return;
-        }
-        const profile = await res.json();
-        // ✅ Field dari backend: name, tanggal_lahir, alergi_herbal
-        const isProfileIncomplete =
-          !profile || !profile.nik || !profile.name || !profile.tanggal_lahir ||
-          !profile.alergi_herbal || profile.alergi_herbal.length === 0;
-        setShowProfileWarning(isProfileIncomplete);
-      } catch (err) {
-        console.error("Error fetching profile:", err);
-        setShowProfileWarning(true); // On error, assume incomplete
-      }
-    };
-
     if (location.state?.profileUpdated) {
-      setShowProfileWarning(false); 
       setShowSuccessToast(true);  
-      
       window.history.replaceState({}, document.title);
-      
       setTimeout(() => setShowSuccessToast(false), 4000); 
-      // After update, re-check profile status to ensure it's truly complete
-      checkProfileStatus();
-    } else {
-      checkProfileStatus();
-    }
+    } 
   }, [location]);
 
   const fetchDiagnoses = async () => {
@@ -108,10 +74,6 @@ export default function Home() {
   };
 
   const handleSearch = async () => {
-    if (showProfileWarning) {
-      navigate("/data-personal", { state: { fromHomeLock: true } });
-      return;
-    }
 
     setErrorMessage(null); 
 
@@ -178,27 +140,6 @@ export default function Home() {
         <HeroSection />
 
         <div className="bg-white rounded-[32px] shadow-[0_20px_50px_rgba(37,99,235,0.07)] border border-primary-10 relative backdrop-blur-sm mt-6">
-          
-          {/* Overlay Kunci */}
-          {showProfileWarning && (
-            <div className="absolute inset-0 z-20 bg-white/40 backdrop-blur-[3px] flex items-center justify-center rounded-[32px]">
-              <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-gray-100 text-center max-w-md animate-fade-in transform transition-all">
-                <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 border-[8px] border-amber-50/50">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-3">Formulir Terkunci</h3>
-                <p className="text-sm text-gray-500 mb-8 leading-relaxed px-2">
-                  Anda belum dapat mencari rekomendasi herbal sebelum melengkapi profil personal Anda.
-                </p>
-                <button 
-                  onClick={() => navigate("/data-personal", { state: { fromHomeLock: true } })}
-                  className="w-full bg-primary-50 text-white font-bold py-4 rounded-xl hover:bg-primary-60 shadow-lg shadow-primary-50/30 transition-all active:scale-95"
-                >
-                  Lengkapi Profil Sekarang
-                </button>
-              </div>
-            </div>
-          )}
 
           <div className="bg-primary-10/40 border-b border-light-40 px-8 py-6 md:px-10 md:py-8 flex items-center justify-between">
             <h2 className="text-xl md:text-2xl font-bold text-dark-50 flex items-center gap-4">
@@ -247,9 +188,9 @@ export default function Home() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary-30" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg> Data diproses secara rahasia & aman.
               </span>
               <div className="flex gap-4 w-full sm:w-auto">
-                <button onClick={handleReset} disabled={isLoading || showProfileWarning} className="flex-1 sm:flex-none px-8 py-4 rounded-2xl font-bold text-dark-30 bg-light-20 hover:bg-red-50 hover:text-danger-30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Reset Data</button>
-                <button onClick={handleSearch} disabled={isLoading || showProfileWarning} className={`flex-1 sm:flex-none text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 ${showProfileWarning ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-primary-40 to-primary-60 hover:from-primary-50 hover:to-primary-70 hover:shadow-xl hover:shadow-primary-30/50 active:scale-95"}`}>
-                  {isLoading ? "Menganalisis..." : showProfileWarning ? "Terkunci" : "Cari Rekomendasi"}
+                <button onClick={handleReset} disabled={isLoading} className="flex-1 sm:flex-none px-8 py-4 rounded-2xl font-bold text-dark-30 bg-light-20 hover:bg-red-50 hover:text-danger-30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Reset Data</button>
+                <button onClick={handleSearch} disabled={isLoading} className={`flex-1 sm:flex-none text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 "bg-gradient-to-r from-primary-40 to-primary-60 hover:from-primary-50 hover:to-primary-70 hover:shadow-xl hover:shadow-primary-30/50 active:scale-95"`}>
+                  {isLoading ? "Menganalisis..." : "Cari Rekomendasi"}
                 </button>
               </div>
             </div>
