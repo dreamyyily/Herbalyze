@@ -601,12 +601,17 @@ def reject_doctor(req: RejectDoctorRequest, db: Session = Depends(get_db)):
     if user.nomor_str:
         user.nomor_str = None; user.nama_instansi = None; user.role = "Rejected_Doctor"
     else:
-        user.instansi_baru = None; user.instansi_lama = None; user.role = "Doctor"
+        # Jika pengajuan adalah perubahan instansi, tetap pertahankan data lama dan baru
+        # sehingga dokter dapat melihat bahwa permintaan perubahan instansi telah ditolak.
+        user.role = "Doctor"
     db.commit(); db.refresh(user)
     return {"message": f"Pengajuan dokter atas nama {user.name} berhasil ditolak."}
 
 
 class ResetRoleRequest(BaseModel):
+    wallet_address: str
+
+class CancelInstansiUpdateRequest(BaseModel):
     wallet_address: str
 
 @app.post("/api/reset_role")
@@ -616,6 +621,21 @@ def reset_role(req: ResetRoleRequest, db: Session = Depends(get_db)):
     user.role = "Patient"; db.commit(); db.refresh(user)
     return {"message": "Status berhasil direset menjadi Pasien", "user": user.to_dict()}
 
+@app.post("/api/doctor/cancel_instansi_update")
+def cancel_instansi_update(req: CancelInstansiUpdateRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(func.lower(User.wallet_address) == req.wallet_address.lower()).first()
+    if not user: raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if not getattr(user, 'instansi_baru', None):
+        raise HTTPException(status_code=400, detail="Tidak ada pengajuan instansi yang dapat dibatalkan")
+    if user.nomor_str:
+        raise HTTPException(status_code=400, detail="Pengajuan ini bukan perubahan instansi")
+    user.instansi_baru = None
+    user.instansi_lama = None
+    user.dokumen_sip_path = None
+    if user.role == 'Pending_Doctor':
+        user.role = 'Doctor'
+    db.commit(); db.refresh(user)
+    return {"message": "Pengajuan perubahan instansi berhasil dibatalkan.", "user": user.to_dict()}
 
 @app.post("/api/doctor/update_instansi")
 async def update_instansi(wallet_address: str = Form(...), nama_instansi: str = Form(...), file_sip: UploadFile = File(...), db: Session = Depends(get_db)):

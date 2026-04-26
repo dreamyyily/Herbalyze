@@ -7,24 +7,6 @@
 export default function HeroSection() {
   return (
     <div className="text-center mb-12 max-w-3xl mx-auto">
-      
-      {/* ========================================== */}
-      {/* 1. LENCANA (BADGE) STATUS AI                 */}
-      {/* ========================================== */}
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-primary-20 shadow-sm text-primary-70 text-sm font-semibold mb-6 hover:shadow-md transition-all">
-        
-        {/* Indikator Titik Berkedip (Ping Animation) */}
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-40 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-50"></span>
-        </span>
-        
-        Sistem Cerdas Bertenaga AI
-      </div>
-
-      {/* ========================================== */}
-      {/* 2. JUDUL UTAMA (HEADLINE)                    */}
-      {/* ========================================== */}
       <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-dark-50 tracking-tight leading-[1.15] mb-6">
         Temukan Solusi Herbal <br className="hidden sm:block" /> 
         Secara <span className="text-primary-50 relative whitespace-nowrap">
