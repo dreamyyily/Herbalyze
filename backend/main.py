@@ -1112,6 +1112,14 @@ def get_patients_by_wallets(req: WalletListRequest, db: Session = Depends(get_db
 def update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(func.lower(User.wallet_address) == req.wallet_address.lower()).first()
     if not user: raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if req.nik:
+        existing_nik = db.query(User).filter(
+            User.nik == req.nik,
+            func.lower(User.wallet_address) != req.wallet_address.lower()
+        ).first()
+        if existing_nik:
+            raise HTTPException(status_code=400, detail="NIK ini sudah terdaftar oleh pengguna lain.")
+    
     if req.nik is not None: user.nik = req.nik
     if req.nama is not None: user.name = req.nama
     if req.tempat_lahir is not None: user.tempat_lahir = req.tempat_lahir

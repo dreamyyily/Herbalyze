@@ -189,7 +189,7 @@ export default function Home() {
               </span>
               <div className="flex gap-4 w-full sm:w-auto">
                 <button onClick={handleReset} disabled={isLoading} className="flex-1 sm:flex-none px-8 py-4 rounded-2xl font-bold text-dark-30 bg-light-20 hover:bg-red-50 hover:text-danger-30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Reset Data</button>
-                <button onClick={handleSearch} disabled={isLoading} className={`flex-1 sm:flex-none text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 "bg-gradient-to-r from-primary-40 to-primary-60 hover:from-primary-50 hover:to-primary-70 hover:shadow-xl hover:shadow-primary-30/50 active:scale-95"`}>
+                <button onClick={handleSearch} disabled={isLoading} className="flex-1 sm:flex-none text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 bg-gradient-to-r from-primary-40 to-primary-60 hover:from-primary-50 hover:to-primary-70 hover:shadow-xl hover:shadow-primary-30/50 active:scale-95">
                   {isLoading ? "Menganalisis..." : "Cari Rekomendasi"}
                 </button>
               </div>

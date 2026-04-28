@@ -505,7 +505,18 @@ export default function DataPersonal() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Gagal menyimpan profil");
+      console.log("Response data:", data);
+      if (!res.ok) {
+        const errorMsg = data.detail || data.error || "Gagal menyimpan profil";
+        if (errorMsg === "NIK ini sudah terdaftar oleh pengguna lain.") {
+          setErrors(prev => ({ ...prev, nik: "NIK ini sudah terdaftar oleh pengguna lain." }));
+          if (fieldRefs.nik?.current) {
+            fieldRefs.nik.current.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          return;
+        }
+        throw new Error(data.detail || "Gagal menyimpan profil");
+      }
 
       localStorage.setItem("user_profile_complete", JSON.stringify(true));
 
