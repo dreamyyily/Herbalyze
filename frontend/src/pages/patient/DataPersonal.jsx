@@ -49,7 +49,8 @@ export default function DataPersonal() {
   const [doctorRequest, setDoctorRequest] = useState({
     nomorSTR: "",
     institusi: "",
-    dokumen: null,
+    dokumenSTR: null,
+    dokumenSIP: null,
   });
   const [strError, setStrError] = useState("");
   const [isEditInstansiOpen, setIsEditInstansiOpen] = useState(false);
@@ -187,11 +188,8 @@ export default function DataPersonal() {
   const handleDoctorChange = (e) => {
     const { name, value } = e.target;
     if (name === "nomorSTR") {
-      // Tolak spasi dan simbol. Hanya izinkan huruf dan angka.
       if (value !== "" && !/^[A-Za-z0-9]+$/.test(value)) return;
-      // Tolak jika melebihi 16 karakter
       if (value.length > 16) return;
-      // Validasi dan set pesan error
       if (value.length === 0) {
         setStrError("Nomor STR wajib diisi.");
       } else if (value.length < 16) {
@@ -199,30 +197,28 @@ export default function DataPersonal() {
           `Validasi gagal: Masih kurang ${16 - value.length} karakter. (Harus tepat 16 karakter huruf/angka)`,
         );
       } else {
-        setStrError(""); // Valid!
+        setStrError(""); 
       }
     }
     setDoctorRequest((prev) => ({ ...prev, [name]: value.toUpperCase() }));
   };
-  const handleDoctorFile = (e) => {
-    const file = e.target.files[0];
-    if (file) setDoctorRequest((prev) => ({ ...prev, dokumen: file }));
-  };
+
+  const handleDoctorFileSTR = (e) => {
+  const file = e.target.files[0];
+  if (file) setDoctorRequest((prev) => ({ ...prev, dokumenSTR: file }));
+};
+
+const handleDoctorFileSIP = (e) => {
+  const file = e.target.files[0];
+  if (file) setDoctorRequest((prev) => ({ ...prev, dokumenSIP: file }));
+};
 
   // --- FUNGSI REQUEST DOKTER ---
   const handleSubmitDoctorRequest = async () => {
-    if (
-      !doctorRequest.nomorSTR ||
-      !doctorRequest.institusi ||
-      !doctorRequest.dokumen
-    ) {
-      showToast(
-        "danger",
-        "Data Belum Lengkap",
-        "Harap lengkapi nomor STR, institusi, dan dokumen pendukung.",
-      );
-      return;
-    }
+    if (!doctorRequest.nomorSTR || !doctorRequest.institusi || !doctorRequest.dokumenSTR || !doctorRequest.dokumenSIP) {
+    showToast("danger", "Data Belum Lengkap", "Harap lengkapi nomor STR, institusi, dokumen STR, dan dokumen SIP.");
+    return;
+  }
     const walletAddress = localStorage.getItem("user_wallet");
     if (!walletAddress) {
       showToast(
@@ -237,7 +233,8 @@ export default function DataPersonal() {
     formPayload.append("wallet_address", walletAddress);
     formPayload.append("nomor_str", doctorRequest.nomorSTR);
     formPayload.append("nama_instansi", doctorRequest.institusi);
-    formPayload.append("file_dokumen", doctorRequest.dokumen);
+    formPayload.append("file_str", doctorRequest.dokumenSTR);   
+    formPayload.append("file_sip", doctorRequest.dokumenSIP); 
 
     try {
       const response = await fetch("http://localhost:8000/api/request_doctor", {
@@ -250,7 +247,7 @@ export default function DataPersonal() {
           data.detail || data.error || "Gagal mengajukan permintaan.",
         );
 
-      setDoctorRequest({ nomorSTR: "", institusi: "", dokumen: null });
+      setDoctorRequest({ nomorSTR: "", institusi: "", dokumenSTR: null, dokumenSIP: null });
       setIsDoctorModalOpen(false);
       setFormData((prev) => ({ ...prev, role: "Pending_Doctor" }));
       setOriginalData((prev) => ({ ...prev, role: "Pending_Doctor" }));
@@ -904,43 +901,55 @@ export default function DataPersonal() {
                   value={doctorRequest.institusi}
                   onChange={handleDoctorChange}
                 />
+                {/* ─── Upload STR ─── */}
                 <div>
                   <label className="text-sm font-semibold text-gray-700 block mb-2">
-                    Upload Dokumen Pendukung (STR / SIP Aktif)
+                    Upload Dokumen STR (Surat Tanda Registrasi) <span className="text-red-500">*</span>
                   </label>
                   <label className="block">
-                    <div
-                      className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${doctorRequest.dokumen ? "border-green-500 bg-green-50" : "border-primary-30 hover:bg-primary-10/50"}`}
-                    >
-                      {doctorRequest.dokumen ? (
+                    <div className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      doctorRequest.dokumenSTR ? "border-green-500 bg-green-50" : "border-primary-30 hover:bg-primary-10/50"
+                    }`}>
+                      {doctorRequest.dokumenSTR ? (
                         <div>
-                          <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
-                            <CheckCircle className="w-6 h-6" />
-                          </div>
-                          <p className="text-green-800 font-bold break-all">
-                            {doctorRequest.dokumen.name}
-                          </p>
+                          <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3"><CheckCircle className="w-6 h-6" /></div>
+                          <p className="text-green-800 font-bold break-all">{doctorRequest.dokumenSTR.name}</p>
                         </div>
                       ) : (
                         <div>
-                          <div className="w-12 h-12 bg-primary-10 text-primary-50 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
-                            <FileText className="w-6 h-6" />
-                          </div>
-                          <p className="text-primary-50 font-bold text-lg">
-                            Pilih Dokumen
-                          </p>
-                          <p className="text-sm text-gray-500 mt-2">
-                            Mendukung PDF, JPG, atau PNG (Max. 5MB)
-                          </p>
+                          <div className="w-12 h-12 bg-primary-10 text-primary-50 rounded-full flex items-center justify-center mx-auto mb-3"><FileText className="w-6 h-6" /></div>
+                          <p className="text-primary-50 font-bold text-lg">Pilih Dokumen STR</p>
+                          <p className="text-sm text-gray-500 mt-2">PDF, JPG, atau PNG (Max. 5MB)</p>
                         </div>
                       )}
                     </div>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={handleDoctorFile}
-                    />
+                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDoctorFileSTR} />
+                  </label>
+                </div>
+
+                {/* ─── Upload SIP ─── */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 block mb-2">
+                    Upload Dokumen SIP (Surat Izin Praktik) <span className="text-red-500">*</span>
+                  </label>
+                  <label className="block">
+                    <div className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      doctorRequest.dokumenSIP ? "border-green-500 bg-green-50" : "border-primary-30 hover:bg-primary-10/50"
+                    }`}>
+                      {doctorRequest.dokumenSIP ? (
+                        <div>
+                          <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3"><CheckCircle className="w-6 h-6" /></div>
+                          <p className="text-green-800 font-bold break-all">{doctorRequest.dokumenSIP.name}</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="w-12 h-12 bg-primary-10 text-primary-50 rounded-full flex items-center justify-center mx-auto mb-3"><FileText className="w-6 h-6" /></div>
+                          <p className="text-primary-50 font-bold text-lg">Pilih Dokumen SIP</p>
+                          <p className="text-sm text-gray-500 mt-2">PDF, JPG, atau PNG (Max. 5MB)</p>
+                        </div>
+                      )}
+                    </div>
+                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDoctorFileSIP} />
                   </label>
                 </div>
               </div>
@@ -949,11 +958,7 @@ export default function DataPersonal() {
                   onClick={() => {
                     setIsDoctorModalOpen(false);
                     setStrError("");
-                    setDoctorRequest({
-                      nomorSTR: "",
-                      institusi: "",
-                      dokumen: null,
-                    });
+                    setDoctorRequest({ nomorSTR: "", institusi: "", dokumenSTR: null, dokumenSIP: null });
                   }}
                   className="flex-1 px-6 py-4 rounded-xl text-gray-600 bg-gray-100 hover:bg-gray-200 font-bold transition"
                 >
@@ -965,7 +970,8 @@ export default function DataPersonal() {
                     doctorRequest.nomorSTR.length !== 16 ||
                     !!strError ||
                     !doctorRequest.institusi ||
-                    !doctorRequest.dokumen
+                    !doctorRequest.dokumenSTR ||   
+                    !doctorRequest.dokumenSIP 
                   }
                   className="flex-1 bg-primary-40 text-white px-6 py-4 rounded-xl font-bold hover:bg-primary-50 shadow-md transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                 >

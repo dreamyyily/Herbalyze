@@ -3,7 +3,7 @@ import MainLayout from "../../layouts/MainLayout";
 import { getSignerContract, getSigner } from "../../utils/web3"; 
 import { sortByDate } from "../../utils/sort";
 import { formatTanggal } from "../../utils/formatTanggal";
-import { AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronUp, ChevronDown, FileText } from "lucide-react";
 
 export default function AdminDashboard() {
   const [pendingDoctors, setPendingDoctors] = useState([]);
@@ -130,8 +130,6 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-extrabold text-dark-50">Dashboard Administrator</h1>
           <p className="text-dark-30 mt-2 text-sm">Kelola dan verifikasi pengajuan akun tenaga medis.</p>
         </div>
-
-
 
         {/* Tabel Antrean */}
         <div className="bg-white rounded-3xl shadow-xl border border-light-40 overflow-hidden relative z-10">
@@ -284,18 +282,32 @@ export default function AdminDashboard() {
 
                 <div>
                   <p className="text-xs text-gray-400 mb-2">Dokumen Pendukung</p>
-                  {selectedDoctor.dokumen_url ? (
-                    <a
-                      href={selectedDoctor.dokumen_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-700 underline text-sm"
-                    >
-                      Lihat Dokumen
-                    </a>
-                  ) : (
-                    <p className="text-gray-500 text-sm">Tidak ada dokumen</p>
-                  )}
+                  <div className="space-y-2">
+                    {selectedDoctor.dokumen_str_url ? (
+                      <a
+                        href={selectedDoctor.dokumen_str_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 underline text-sm"
+                      >
+                        <FileText size={14} /> Lihat Dokumen STR
+                      </a>
+                    ) : (
+                      <p className="text-gray-400 text-sm">Dokumen STR tidak tersedia</p>
+                    )}
+                    {selectedDoctor.dokumen_sip_url ? (
+                      <a
+                        href={selectedDoctor.dokumen_sip_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-green-600 hover:text-green-700 underline text-sm"
+                      >
+                        <FileText size={14} /> Lihat Dokumen SIP
+                      </a>
+                    ) : (
+                      <p className="text-gray-400 text-sm">Dokumen SIP tidak tersedia</p>
+                    )}
+                  </div>
                 </div>
               </div>
 

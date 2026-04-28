@@ -549,12 +549,16 @@ def verify_signature(req: Web3AuthRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/request_doctor")
-async def request_doctor(wallet_address: str = Form(...), nomor_str: str = Form(...), nama_instansi: str = Form(...), file_dokumen: UploadFile = File(...), db: Session = Depends(get_db)):
+async def request_doctor(wallet_address: str = Form(...), nomor_str: str = Form(...), nama_instansi: str = Form(...), file_str: UploadFile = File(...), file_sip: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(func.lower(User.wallet_address) == wallet_address.lower()).first()
         if not user: raise HTTPException(status_code=404, detail="User not found")
-        cid = upload_to_ipfs(file_dokumen)
-        user.dokumen_str_path = cid; user.role = "Pending_Doctor"; user.nomor_str = nomor_str
+        cid_str = upload_to_ipfs(file_str)
+        cid_sip = upload_to_ipfs(file_sip)
+        user.dokumen_str_path = cid_str    
+        user.dokumen_sip_path = cid_sip 
+        user.role = "Pending_Doctor" 
+        user.nomor_str = nomor_str
         user.nama_instansi = nama_instansi; user.created_at = datetime.utcnow()
         db.commit(); db.refresh(user)
         return {"message": "Permintaan menjadi dokter berhasil diajukan.", "user": user.to_dict()}
@@ -569,9 +573,12 @@ def get_pending_doctors(db: Session = Depends(get_db)):
     result = []
     for u in users:
         d = u.to_dict()
-        d["nomor_str"] = u.nomor_str; d["nama_instansi"] = u.nama_instansi
-        d["instansi_lama"] = getattr(u, 'instansi_lama', None); d["instansi_baru"] = getattr(u, 'instansi_baru', None)
-        d["dokumen_url"] = f"https://gateway.pinata.cloud/ipfs/{u.dokumen_str_path}" if u.dokumen_str_path else None
+        d["nomor_str"] = u.nomor_str
+        d["nama_instansi"] = u.nama_instansi
+        d["instansi_lama"] = getattr(u, 'instansi_lama', None)
+        d["instansi_baru"] = getattr(u, 'instansi_baru', None)
+        d["dokumen_str_url"] = f"https://gateway.pinata.cloud/ipfs/{u.dokumen_str_path}" if u.dokumen_str_path else None 
+        d["dokumen_sip_url"] = f"https://gateway.pinata.cloud/ipfs/{u.dokumen_sip_path}" if u.dokumen_sip_path else None  
         d["created_at"] = u.created_at.isoformat() if u.created_at else None
         result.append(d)
     return result
