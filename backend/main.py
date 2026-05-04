@@ -63,9 +63,13 @@ def _load_json_config(filename: str, key: str) -> list:
         print(f"⚠️ Gagal load config '{filename}': {e}")
         return []
 
-NLP_STOPWORDS       = set(_load_json_config("stopwords.json",       "stopwords"))
+NLP_STOPWORDS        = set(_load_json_config("stopwords.json",  "stopwords"))
+NLP_NEGATION_WORDS   = set(_load_json_config("negation.json",   "negation_words"))
+NLP_NEGATION_PHRASES = list(_load_json_config("negation.json",  "negation_phrases"))
 
-print(NLP_STOPWORDS)  
+print(NLP_STOPWORDS)
+print(f"✅ Negation words loaded  : {NLP_NEGATION_WORDS}")
+print(f"✅ Negation phrases loaded: {NLP_NEGATION_PHRASES}")
 
 def _get_active_mode() -> str:
     try:
@@ -831,9 +835,6 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
         print(f"\n🧩 [NLP] Memecah kalimat input...")
         print(f"   Mode aktif : {ACTIVE_MODE.upper()}")
 
-        NEGATION_WORDS = {"tidak", "tanpa", "bukan", "belum", "ga"}
-        NEGATION_PHRASES = ["tidak ada", "tidak mengalami", "tidak pernah", "belum pernah"]
-
         delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b|\bbersama\b|\bplus\b|\bditambah\b|\bselain itu\b|\blainnya\b|\btermasuk\b|\bseperti\b|\btetapi\b'
         raw_chunks = re.split(delimiters, query_clean)
 
@@ -848,8 +849,8 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
 
             # Cek negasi (kata tunggal + frasa)
             has_negation = (
-                any(w in NEGATION_WORDS for w in words) or
-                any(phrase in temp for phrase in NEGATION_PHRASES)
+                any(w in NLP_NEGATION_WORDS for w in words) or
+                any(phrase in temp for phrase in NLP_NEGATION_PHRASES)
             )
             if has_negation:
                 skipped_chunks.append(temp)

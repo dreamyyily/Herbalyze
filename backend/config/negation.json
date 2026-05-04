@@ -1,0 +1,33 @@
+{
+  "negation_words": [
+    "tidak",
+    "bukan",
+    "belum",
+    "tanpa",
+    "tak",
+    "tiada",
+    "negatif",
+    "non",
+    "bebas"
+  ],
+  "negation_phrases": [
+    "tidak ada",
+    "tidak ada gejala",
+    "tidak ada keluhan",
+    "tidak bergejala",
+    "tidak mengalami",
+    "tidak menderita",
+    "tidak menunjukkan gejala",
+    "tidak ditemukan",
+    "tidak terdeteksi",
+    "tidak terdiagnosis",
+    "belum terdiagnosis",
+    "belum mengalami",
+    "hasil negatif",
+    "pemeriksaan negatif",
+    "tes negatif",
+    "dalam batas normal",
+    "tanpa keluhan",
+    "tanpa gejala"
+  ]
+}
