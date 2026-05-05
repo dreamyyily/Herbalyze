@@ -536,11 +536,10 @@ function RiwayatCard({
   isSelectMode,
   isSelected,
   onToggleSelect,
+  onSelectUnsafe, 
 }) {
   const [expanded, setExpanded] = useState(false);
   const [starAnimating, setStarAnimating] = useState(false);
-  const [selectedUnsafe, setSelectedUnsafe] = useState(null);
-
   const allInputs = [...(hist.diagnoses || []), ...(hist.symptoms || [])];
   const totalHerbs =
     hist.recommendations?.reduce((s, g) => s + g.herbs.length, 0) || 0;
@@ -572,12 +571,6 @@ function RiwayatCard({
       className="animate-[staggeredFadeIn_0.5s_ease-out_forwards]"
       style={{ opacity: 0, animationDelay: `${index * 80}ms` }}
     >
-      {selectedUnsafe && (
-        <UnsafeHerbModal
-          herb={selectedUnsafe}
-          onClose={() => setSelectedUnsafe(null)}
-        />
-      )}
 
       <div
         onClick={handleCardClick}
@@ -981,7 +974,7 @@ function RiwayatCard({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedUnsafe(unsafe);
+                                onSelectUnsafe(unsafe);
                               }}
                               className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md active:scale-95"
                             >
@@ -1121,6 +1114,7 @@ export default function Riwayat() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showMultiDeleteModal, setShowMultiDeleteModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedUnsafeGlobal, setSelectedUnsafeGlobal] = useState(null);
   const ITEMS_PER_PAGE = 10;
 
   const enterSelectMode = () => {
@@ -1617,6 +1611,7 @@ export default function Riwayat() {
                     setSelectedHerb(herb);
                     setSelectedHerbChemical(!!chemical);
                   }}
+                  onSelectUnsafe={setSelectedUnsafeGlobal}
                   isFavorite={favorites.has(hist.id)}
                   onToggleFavorite={handleToggleFavorite}
                   isSelectMode={isSelectMode}
@@ -1786,6 +1781,13 @@ export default function Riwayat() {
             setSelectedHerbChemical(false);
           }}
           showMedicalWarning={selectedHerbChemical}
+        />
+      )}
+
+      {selectedUnsafeGlobal && (
+        <UnsafeHerbModal
+          herb={selectedUnsafeGlobal}
+          onClose={() => setSelectedUnsafeGlobal(null)}
         />
       )}
 
