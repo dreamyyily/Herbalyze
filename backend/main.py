@@ -847,20 +847,53 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                 continue
             words = re.sub(r'[^\w\s]', '', temp).split()
 
-            # Cek negasi (kata tunggal + frasa)
-            has_negation = (
-                any(w in NLP_NEGATION_WORDS for w in words) or
-                any(phrase in temp for phrase in NLP_NEGATION_PHRASES)
-            )
-            if has_negation:
+            # ── Cek negasi frasa dulu (prioritas lebih tinggi) ──
+            has_phrase_negation = any(phrase in temp for phrase in NLP_NEGATION_PHRASES)
+            if has_phrase_negation:
                 skipped_chunks.append(temp)
-                print(f"   ⛔ [NEGASI] '{temp}' dilewati.")
+                print(f"   ⛔ [NEGASI FRASA] '{temp}' dilewati.")
                 continue
 
-            filtered_words = [w for w in words if w not in NLP_STOPWORDS]
-            result = " ".join(filtered_words).strip()
-            if len(result) > 2:
-                clean_chunks.append(result)
+            # ── Cek negasi kata tunggal → pisahkan per-gejala ──
+            negation_positions = [i for i, w in enumerate(words) if w in NLP_NEGATION_WORDS]
+
+            if negation_positions:
+                # Tentukan kata mana saja yang kena scope negasi
+                # Scope: kata negasi + 1-3 token setelahnya
+                NEGATION_SCOPE = 3
+                negated_indices = set()
+                for neg_idx in negation_positions:
+                    negated_indices.add(neg_idx)  # kata negasi sendiri
+                    for offset in range(1, NEGATION_SCOPE + 1):
+                        if neg_idx + offset < len(words):
+                            negated_indices.add(neg_idx + offset)
+
+                # Pisahkan kata yang dinegasi vs yang tidak
+                positive_words = []
+                negated_words = []
+                for i, w in enumerate(words):
+                    if i in negated_indices:
+                        negated_words.append(w)
+                    else:
+                        positive_words.append(w)
+
+                if negated_words:
+                    neg_text = " ".join(negated_words)
+                    skipped_chunks.append(neg_text)
+                    print(f"   ⛔ [NEGASI] '{neg_text}' dilewati.")
+
+                # Proses kata-kata positif yang TIDAK kena negasi
+                filtered = [w for w in positive_words if w not in NLP_STOPWORDS]
+                result = " ".join(filtered).strip()
+                if len(result) > 2:
+                    clean_chunks.append(result)
+                    print(f"   ✅ [POSITIF] '{result}' diproses.")
+            else:
+                # Tidak ada negasi → proses normal
+                filtered_words = [w for w in words if w not in NLP_STOPWORDS]
+                result = " ".join(filtered_words).strip()
+                if len(result) > 2:
+                    clean_chunks.append(result)
 
         print(f"   Hasil chunks    : {clean_chunks}")
         if skipped_chunks:
