@@ -76,7 +76,7 @@ const hasAnyResult = totalHerbs > 0 || totalUnsafe > 0;
             rekomendasi herbal aman. Silakan klik tiap kategori untuk melihat detailnya.
           </p>
         ) : totalUnsafe > 0 ? (
-          <p className="text-lg text-rose-700 bg-rose-50 p-4 rounded-xl inline-block border border-rose-100">
+          <p className="text-lg text-orange-700 bg-orange-50 p-4 rounded-xl inline-block border border-orange-100">
             Tidak ada herbal yang aman untuk kondisi Anda. Namun, sistem menemukan daftar herbal yang perlu dihindari.
           </p>
         ) : (
@@ -182,74 +182,74 @@ const hasAnyResult = totalHerbs > 0 || totalUnsafe > 0;
                       </div>
                     )}
                    {(group.unsafe_herbs?.length || 0) > 0 && (
-                    <div className="mb-8">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="text-sm font-black uppercase tracking-[0.2em] text-rose-600">
-                            Herbal yang perlu dihindari
-                          </h4>
-                          <p className="text-sm text-slate-500 mt-1">
-                            Sistem mendeteksi {group.unsafe_herbs.length} herbal yang berisiko untuk kategori ini.
-                          </p>
-                        </div>
-                        <span className="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs font-bold">
-                          {group.unsafe_herbs.length} Risiko
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {group.unsafe_herbs.map((unsafe, uIdx) => (
-                          <div
-                            key={uIdx}
-                            className="bg-white border border-rose-100 rounded-[24px] p-5 flex flex-col justify-between shadow-sm hover:border-rose-300 transition-all"
-                          >
-                            <div>
-                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black uppercase rounded-md tracking-widest mb-3 inline-block">
-                                Kategori: {group.group_name}
-                              </span>
-
-                              <h5 className="text-base font-black text-slate-800 mb-2">
-                                {unsafe.name}
-                              </h5>
-
-                              <p className="text-[11px] text-rose-600 font-bold italic flex items-center gap-1.5 mb-4">
-                                <AlertTriangle size={12} />
-                                {unsafe.reason}
-                              </p>
-                            </div>
-
-                            <button
-                              onClick={() => setUnsafeDetail(unsafe)}
-                              className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md active:scale-95"
-                            >
-                              Lihat Analisis Risiko
-                            </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {unsafeDetail && (
-                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-[fadeIn_0.2s]">
-                        <div className="bg-white rounded-[40px] w-full max-w-xl overflow-hidden shadow-2xl animate-[slideUp_0.3s]">
-                          <div className="p-8">
-                            <div className="flex justify-between items-start mb-6">
-                              <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner">
-                                <ShieldAlert size={28} />
-                              </div>
-                              <button onClick={() => setUnsafeDetail(null)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors"><X /></button>
-                            </div>
-
-                            <h2 className="text-2xl font-black text-slate-800 leading-tight mb-4">
-                              {/* DI SINI SELURUH NAMA MUNCUL DENGAN KOMA */}
-                              {formatFullHerbalName(unsafeDetail.full_name || unsafeDetail.name)}
-                            </h2>
-
-                            <div className="flex items-center gap-3 p-4 bg-rose-50 rounded-2xl border border-rose-100 mb-6">
-                              <AlertTriangle className="text-rose-500" size={20} />
-                              <p className="text-xs font-black text-rose-700 uppercase tracking-tighter">{unsafeDetail.reason}</p>
-                            </div>
+                     <div className="mb-8">
+                       <div className="flex items-center justify-between mb-4">
+                         <div>
+                           <h4 className="text-sm font-black uppercase tracking-[0.2em] text-orange-600">
+                             Herbal yang perlu dihindari
+                           </h4>
+                           <p className="text-sm text-slate-500 mt-1">
+                             Sistem mendeteksi {group.unsafe_herbs.length} herbal yang berisiko untuk kategori ini.
+                           </p>
+                         </div>
+                         <span className="px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-xs font-bold">
+                           {group.unsafe_herbs.length} Risiko
+                         </span>
+                       </div>
+ 
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {group.unsafe_herbs.map((unsafe, uIdx) => (
+                           <div
+                             key={uIdx}
+                             className="bg-white border border-orange-100 rounded-[24px] p-5 flex flex-col justify-between shadow-sm hover:border-orange-300 transition-all"
+                           >
+                             <div>
+                               <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black uppercase rounded-md tracking-widest mb-3 inline-block">
+                                 Kategori: {group.group_name}
+                               </span>
+ 
+                               <h5 className="text-base font-black text-slate-800 mb-2">
+                                 {unsafe.name}
+                               </h5>
+ 
+                               <p className="text-[11px] text-orange-600 font-bold italic flex items-center gap-1.5 mb-4">
+                                 <AlertTriangle size={12} />
+                                 {unsafe.reason}
+                               </p>
+                             </div>
+ 
+                             <button
+                               onClick={() => setUnsafeDetail(unsafe)}
+                               className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all shadow-md active:scale-95"
+                             >
+                               Lihat Analisis Risiko
+                             </button>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+ 
+                     {unsafeDetail && (
+                       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-[fadeIn_0.2s]">
+                         <div className="bg-white rounded-[40px] w-full max-w-xl overflow-hidden shadow-2xl animate-[slideUp_0.3s]">
+                           <div className="p-8">
+                             <div className="flex justify-between items-start mb-6">
+                               <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center shadow-inner">
+                                 <ShieldAlert size={28} />
+                               </div>
+                               <button onClick={() => setUnsafeDetail(null)} className="p-2 text-slate-300 hover:text-orange-500 transition-colors"><X /></button>
+                             </div>
+ 
+                             <h2 className="text-2xl font-black text-slate-800 leading-tight mb-4">
+                               {/* DI SINI SELURUH NAMA MUNCUL DENGAN KOMA */}
+                               {formatFullHerbalName(unsafeDetail.full_name || unsafeDetail.name)}
+                             </h2>
+ 
+                             <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-100 mb-6">
+                               <AlertTriangle className="text-orange-500" size={20} />
+                               <p className="text-xs font-black text-orange-700 uppercase tracking-tighter">{unsafeDetail.reason}</p>
+                             </div>
 
                             <div className="space-y-5">
                               <div className="bg-slate-50 rounded-[28px] p-6 border border-slate-100">
@@ -408,14 +408,14 @@ const hasAnyResult = totalHerbs > 0 || totalUnsafe > 0;
                       
                       {/* Peringatan Interaksi Obat (Hanya muncul jika user minum obat kimia) */}
                       {selectedDrug && selectedDrug.includes("Ya") && (
-                        <div className="bg-danger-30/10 border-l-4 border-danger-30 p-4 sm:p-5 rounded-r-2xl shadow-sm animate-[fadeIn_0.5s_ease-out]">
+                        <div className="bg-warning-10/40 border-l-4 border-warning-40 p-4 sm:p-5 rounded-r-2xl shadow-sm animate-[fadeIn_0.5s_ease-out]">
                           <div className="flex items-start gap-3 sm:gap-4">
-                            <div className="p-2 bg-light-10 rounded-full text-danger-30 flex-shrink-0 mt-0.5">
+                            <div className="p-2 bg-light-10 rounded-full text-warning-40 flex-shrink-0 mt-0.5">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                             </div>
                             <div>
-                              <h4 className="text-sm sm:text-base font-bold text-danger-30 mb-1">Instruksi Keamanan Medis!</h4>
-                              <p className="text-xs sm:text-sm text-danger-30/90 leading-relaxed">
+                              <h4 className="text-sm sm:text-base font-bold text-orange-800 mb-1">Instruksi Keamanan Medis!</h4>
+                              <p className="text-xs sm:text-sm text-orange-700 leading-relaxed">
                                 Karena Anda sedang mengonsumsi obat medis/kimia, Anda <strong>WAJIB memberikan jeda waktu minimal 2 jam</strong> sebelum atau sesudah meminum ramuan herbal ini untuk mencegah interaksi obat yang membahayakan fungsi hati.
                               </p>
                             </div>

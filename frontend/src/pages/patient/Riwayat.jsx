@@ -99,12 +99,12 @@ function UnsafeHerbModal({ herb, onClose }) {
         <div className="p-6">
           {/* Header: icon + close */}
           <div className="flex justify-between items-center mb-5">
-            <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center">
               <ShieldAlert size={22} />
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 hover:text-orange-500 hover:bg-orange-50 transition-colors"
             >
               <X size={18} />
             </button>
@@ -123,9 +123,9 @@ function UnsafeHerbModal({ herb, onClose }) {
           )}
 
           {/* Alasan risiko */}
-          <div className="flex items-center gap-2.5 p-3 bg-rose-50 rounded-xl border border-rose-100 mb-5">
-            <AlertTriangle className="text-rose-500 shrink-0" size={16} />
-            <p className="text-[11px] font-black text-rose-700 uppercase tracking-tight">
+          <div className="flex items-center gap-2.5 p-3 bg-orange-50 rounded-xl border border-orange-100 mb-5">
+            <AlertTriangle className="text-orange-500 shrink-0" size={16} />
+            <p className="text-[11px] font-black text-orange-700 uppercase tracking-tight">
               {herb.reason}
             </p>
           </div>
@@ -277,9 +277,9 @@ function HerbDetailModal({ herb, onClose, showMedicalWarning }) {
           <div className="p-5 sm:p-6 space-y-5">
             {/* Peringatan Obat Kimia */}
             {showMedicalWarning && (
-              <div className="bg-danger-30/10 border-l-4 border-danger-30 p-4 rounded-r-2xl shadow-sm animate-[fadeIn_0.5s_ease-out]">
+              <div className="bg-warning-10/40 border-l-4 border-warning-40 p-4 rounded-r-2xl shadow-sm animate-[fadeIn_0.5s_ease-out]">
                 <div className="flex items-start gap-3">
-                  <div className="p-1.5 bg-light-10 rounded-full text-danger-30 flex-shrink-0 mt-0.5">
+                  <div className="p-1.5 bg-light-10 rounded-full text-warning-40 flex-shrink-0 mt-0.5">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="h-5 w-5"
@@ -296,10 +296,10 @@ function HerbDetailModal({ herb, onClose, showMedicalWarning }) {
                     </svg>
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-danger-30 mb-1">
+                    <h4 className="text-sm font-bold text-orange-800 mb-1">
                       Instruksi Keamanan Medis!
                     </h4>
-                    <p className="text-xs text-danger-30/90 leading-relaxed">
+                    <p className="text-xs text-orange-700 leading-relaxed">
                       Karena Anda sedang mengonsumsi obat medis/kimia, Anda{" "}
                       <strong>WAJIB memberikan jeda waktu minimal 2 jam</strong>{" "}
                       sebelum atau sesudah meminum ramuan herbal ini untuk
@@ -686,7 +686,7 @@ function RiwayatCard({
               🌿 {totalHerbs} Herbal Direkomendasikan
             </span>
             {totalUnsafe > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-bold rounded-full border border-rose-100">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-xs font-bold rounded-full border border-orange-100">
                 ⛔ {totalUnsafe} Perlu Dihindari
               </span>
             )}
@@ -948,7 +948,7 @@ function RiwayatCard({
                     <div>
                       <div className="flex items-center justify-between mb-4">
                         <div>
-                          <h4 className="text-sm font-black uppercase tracking-[0.2em] text-rose-600">
+                          <h4 className="text-sm font-black uppercase tracking-[0.2em] text-orange-600">
                             ⛔ Herbal yang Perlu Dihindari
                           </h4>
                           <p className="text-sm text-slate-500 mt-1">
@@ -956,7 +956,7 @@ function RiwayatCard({
                             yang berisiko untuk kategori ini.
                           </p>
                         </div>
-                        <span className="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs font-bold">
+                        <span className="px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-xs font-bold">
                           {group.unsafe_herbs.length} Risiko
                         </span>
                       </div>
@@ -964,7 +964,7 @@ function RiwayatCard({
                         {group.unsafe_herbs.map((unsafe, ui) => (
                           <div
                             key={ui}
-                            className="bg-white border border-rose-100 rounded-[24px] p-5 flex flex-col justify-between shadow-sm hover:border-rose-300 transition-all"
+                            className="bg-white border border-orange-100 rounded-[24px] p-5 flex flex-col justify-between shadow-sm hover:border-orange-300 transition-all"
                           >
                             <div>
                               <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black uppercase rounded-md tracking-widest mb-3 inline-block">
@@ -973,7 +973,7 @@ function RiwayatCard({
                               <h5 className="text-base font-black text-slate-800 mb-2">
                                 {unsafe.name}
                               </h5>
-                              <p className="text-[11px] text-rose-600 font-bold italic flex items-center gap-1.5 mb-4">
+                              <p className="text-[11px] text-orange-600 font-bold italic flex items-center gap-1.5 mb-4">
                                 <AlertTriangle size={12} className="shrink-0" />
                                 {unsafe.reason}
                               </p>
@@ -983,7 +983,7 @@ function RiwayatCard({
                                 e.stopPropagation();
                                 setSelectedUnsafe(unsafe);
                               }}
-                              className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md active:scale-95"
+                              className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all shadow-md active:scale-95"
                             >
                               Lihat Analisis Risiko
                             </button>
