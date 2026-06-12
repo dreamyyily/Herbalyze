@@ -269,7 +269,7 @@ export default function RekamMedis() {
       (data.patients || []).forEach((p) => {
         map[p.wallet_address.toLowerCase()] = p;
       });
-      setPatientProfiles(map);
+      setPatientProfiles((prev) => ({ ...prev, ...map }));
     } catch (err) {
       console.warn("Profil pasien tidak bisa diambil:", err);
     }
@@ -302,7 +302,7 @@ export default function RekamMedis() {
             if (!decryptedString) continue;
             const decryptedData = JSON.parse(decryptedString);
 
-            // Filter: hanya tampilkan rekam medis yang ditulis oleh dokter ini
+            // Filter: hanya tampilkan rekam medis yang ditulis oleh tenaga medis ini
             if (
               (decryptedData.doctor_wallet || "").toLowerCase() !== userWallet
             )
@@ -404,7 +404,7 @@ export default function RekamMedis() {
       const payload = {
         patient_wallet: patientWallet.toLowerCase(),
         doctor_wallet: userWallet,
-        doctor_name: profile.name || "Dokter Anonim",
+        doctor_name: profile.name || "Tenaga Medis Anonim",
         doctor_instansi:
           profile.nama_instansi || profile.instansi || "Rumah Sakit",
         record_data: {
@@ -549,10 +549,11 @@ export default function RekamMedis() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <p className="text-xs text-gray-400 mb-1 uppercase tracking-wide">
-                    Dokter
+                    Tenaga Medis
                   </p>
                   <p className="font-semibold text-gray-800">
-                    {selectedRecord.dokterName ||
+                    {selectedRecord.tenagaMedisName ||
+                      selectedRecord.dokterName ||
                       selectedRecord.doctor_name ||
                       "-"}
                   </p>
@@ -646,45 +647,22 @@ export default function RekamMedis() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Pilih Pasien <span className="text-red-500">*</span>
+                    Pasien <span className="text-red-500">*</span>
                   </label>
-                  {consentedPatients.length > 0 ? (
-                    <div className="relative">
-                      <select
-                        value={patientWallet}
-                        onChange={(e) => setPatientWallet(e.target.value)}
-                        className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition appearance-none"
-                      >
-                        <option value="" disabled>
-                          -- Pilih pasien yang sudah memberi izin --
-                        </option>
-                        {consentedPatients.map((wallet) => {
-                          const norm = wallet.toLowerCase();
-                          const p = patientProfiles[norm];
-                          return (
-                            <option key={wallet} value={wallet}>
-                              {p
-                                ? p.name
-                                : `Pasien (${norm.substring(0, 6)}...${norm.slice(-4)})`}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-500">
-                        <svg
-                          className="fill-current h-4 w-4"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                        </svg>
-                      </div>
+                  {patientWallet ? (
+                    <div className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 font-semibold flex items-center gap-3">
+                      <Avatar
+                        name={patientProfiles[patientWallet.toLowerCase()]?.name}
+                        fotoProfil={patientProfiles[patientWallet.toLowerCase()]?.foto_profil}
+                        size="sm"
+                      />
+                      <span>
+                        {patientProfiles[patientWallet.toLowerCase()]?.name || `Pasien (${patientWallet.substring(0, 6)}...${patientWallet.slice(-4)})`}
+                      </span>
                     </div>
                   ) : (
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-700">
-                      ⚠️ Belum ada pasien yang memberikan izin kepada Anda.
-                      Minta pasien untuk membuka halaman{" "}
-                      <strong>Perizinan Dokter</strong> dan klik "Beri Izin".
+                      ⚠️ Belum memilih pasien atau tidak ada izin.
                     </div>
                   )}
                 </div>
@@ -723,7 +701,7 @@ export default function RekamMedis() {
                     name="obat"
                     value={formData.obat}
                     onChange={handleInputChange}
-                    placeholder="Contoh: Paracetamol 500mg, Amoxicillin 3x1, atau herbal sesuai resep dokter..."
+                    placeholder="Contoh: Paracetamol 500mg, Amoxicillin 3x1, atau herbal sesuai resep tenaga medis..."
                     className="w-full p-4 bg-transparent border border-gray-200 rounded-xl focus:border-primary-40 focus:ring-1 focus:ring-primary-40 outline-none transition"
                   />
                 </div>
@@ -872,7 +850,7 @@ export default function RekamMedis() {
                       </p>
                       <p className="text-gray-400 text-sm mt-1">
                         Minta pasien untuk membuka halaman{" "}
-                        <strong>Perizinan Dokter</strong> dan klik "Beri Izin"
+                        <strong>Perizinan Tenaga Medis</strong> dan klik "Beri Izin"
                       </p>
                     </div>
                   ) : (

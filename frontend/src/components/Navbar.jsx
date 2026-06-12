@@ -133,7 +133,7 @@ export default function Navbar() {
           <div className="text-3xl font-bold text-primary-40">Herbalyze</div>
           {role === "Doctor" && (
             <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
-              🩺 Dokter Aktif
+              🩺 Tenaga medis Aktif
             </span>
           )}
         </div>
@@ -163,7 +163,7 @@ export default function Navbar() {
                   `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`
                 }
               >
-                Perizinan Dokter
+                Perizinan Tenaga medis
               </NavLink>
               <NavLink
                 to="/catatan-dokter"
@@ -171,7 +171,7 @@ export default function Navbar() {
                   `relative text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`
                 }
               >
-                Catatan Dokter
+                Catatan Tenaga medis
                 {draftCount > 0 && (
                   <span className="absolute -top-2 -right-4 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm animate-pulse">
                     {draftCount}
@@ -213,7 +213,7 @@ export default function Navbar() {
                   `text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`
                 }
               >
-                Perizinan Dokter
+                Perizinan Tenaga medis
               </NavLink>
               <NavLink
                 to="/catatan-dokter"
@@ -221,7 +221,7 @@ export default function Navbar() {
                   `relative text-regular-16 ${isActive ? "text-bold-16 text-primary-40" : "text-dark-30"} hover:text-primary-40 transition`
                 }
               >
-                Catatan Dokter
+                Catatan Tenaga medis
                 {draftCount > 0 && (
                   <span className="absolute -top-2 -right-4 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm animate-pulse">
                     {draftCount}
@@ -381,11 +381,10 @@ export default function Navbar() {
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleteConfirm !== "HAPUS" || isDeleting}
-                className={`flex-1 px-6 py-3 rounded-xl font-bold text-white transition ${
-                  deleteConfirm === "HAPUS" && !isDeleting
-                    ? "bg-danger-30 hover:bg-red-600"
-                    : "bg-light-50 cursor-not-allowed"
-                }`}
+                className={`flex-1 px-6 py-3 rounded-xl font-bold text-white transition ${deleteConfirm === "HAPUS" && !isDeleting
+                  ? "bg-danger-30 hover:bg-red-600"
+                  : "bg-light-50 cursor-not-allowed"
+                  }`}
               >
                 {isDeleting ? "Menghapus..." : "Hapus Akun"}
               </button>

@@ -69,6 +69,35 @@ CONTRACT_ABI = [
         "name": "MedicalRecordAdded",
         "type": "event"
     },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "_patient", "type": "address"},
+            {"internalType": "string", "name": "_historyData", "type": "string"}
+        ],
+        "name": "addSearchHistory",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "address", "name": "_patient", "type": "address"}],
+        "name": "getSearchHistory",
+        "outputs": [
+            {
+                "components": [
+                    {"internalType": "uint256", "name": "id", "type": "uint256"},
+                    {"internalType": "string", "name": "historyData", "type": "string"},
+                    {"internalType": "address", "name": "patientAddress", "type": "address"},
+                    {"internalType": "uint256", "name": "timestamp", "type": "uint256"}
+                ],
+                "internalType": "struct MedicalRecordSystem.SearchHistoryRecord[]",
+                "name": "",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
 ]
 
 
@@ -129,13 +158,13 @@ def approve_wallet_on_chain(wallet_address: str) -> dict:
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 
         if receipt.status == 1:
-            print(f"✅ approveUser({wallet_address}) sukses. TX: {tx_hash.hex()}")
+            print(f"[OK] approveUser({wallet_address}) sukses. TX: {tx_hash.hex()}")
             return {"success": True, "tx_hash": tx_hash.hex()}
         else:
             return {"success": False, "error": "Transaksi gagal (status=0)"}
 
     except Exception as e:
-        print(f"❌ Error approve_wallet_on_chain({wallet_address}): {e}")
+        print(f"[ERROR] Error approve_wallet_on_chain({wallet_address}): {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -211,7 +240,7 @@ def add_medical_record_on_chain(patient_wallet: str, encrypted_data: str) -> dic
             except Exception:
                 pass
 
-            print(f"✅ addMedicalRecord sukses untuk {patient_wallet}. TX: {tx_hash.hex()}")
+            print(f"[OK] addMedicalRecord sukses untuk {patient_wallet}. TX: {tx_hash.hex()}")
             return {
                 "success": True,
                 "tx_hash": tx_hash.hex(),
@@ -221,5 +250,82 @@ def add_medical_record_on_chain(patient_wallet: str, encrypted_data: str) -> dic
             return {"success": False, "error": "Transaksi gagal (status=0)"}
 
     except Exception as e:
-        print(f"❌ Error add_medical_record_on_chain({patient_wallet}): {e}")
+        print(f"[ERROR] Error add_medical_record_on_chain({patient_wallet}): {e}")
         return {"success": False, "error": str(e)}
+
+def add_search_history_on_chain(patient_wallet: str, history_json_string: str) -> dict:
+    load_dotenv(override=True)
+    _admin_key = os.getenv("ADMIN_PRIVATE_KEY", "")
+    _contract_addr = os.getenv("CONTRACT_ADDRESS", "")
+    _rpc_url = os.getenv("GANACHE_RPC_URL", "http://127.0.0.1:7545")
+
+    if not _admin_key or not _contract_addr:
+        return {"success": False, "error": "Blockchain belum dikonfigurasi di .env"}
+
+    try:
+        w3 = Web3(Web3.HTTPProvider(_rpc_url))
+        if not w3.is_connected():
+            return {"success": False, "error": "Tidak bisa terhubung ke Ganache"}
+
+        checksum_contract = Web3.to_checksum_address(_contract_addr)
+        contract = w3.eth.contract(address=checksum_contract, abi=CONTRACT_ABI)
+        admin_account = w3.eth.account.from_key(_admin_key)
+        checksum_patient = Web3.to_checksum_address(patient_wallet)
+
+        nonce = w3.eth.get_transaction_count(admin_account.address)
+        txn = contract.functions.addSearchHistory(
+            checksum_patient,
+            history_json_string
+        ).build_transaction({
+            "from": admin_account.address,
+            "nonce": nonce,
+            "gas": 3000000, # Increased gas limit because JSON can be large
+            "gasPrice": w3.eth.gas_price,
+        })
+
+        signed_txn = w3.eth.account.sign_transaction(txn, private_key=_admin_key)
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        if receipt.status == 1:
+            print(f"[OK] addSearchHistory sukses untuk {patient_wallet}. TX: {tx_hash.hex()}")
+            return {"success": True, "tx_hash": tx_hash.hex()}
+        else:
+            return {"success": False, "error": "Transaksi gagal (status=0)"}
+    except Exception as e:
+        print(f"[ERROR] Error add_search_history_on_chain({patient_wallet}): {e}")
+        return {"success": False, "error": str(e)}
+
+def get_search_history_on_chain(patient_wallet: str):
+    load_dotenv(override=True)
+    _contract_addr = os.getenv("CONTRACT_ADDRESS", "")
+    _rpc_url = os.getenv("GANACHE_RPC_URL", "http://127.0.0.1:7545")
+
+    if not _contract_addr:
+        return []
+
+    try:
+        w3 = Web3(Web3.HTTPProvider(_rpc_url))
+        if not w3.is_connected():
+            return []
+
+        checksum_contract = Web3.to_checksum_address(_contract_addr)
+        contract = w3.eth.contract(address=checksum_contract, abi=CONTRACT_ABI)
+        checksum_patient = Web3.to_checksum_address(patient_wallet)
+
+        history = contract.functions.getSearchHistory(checksum_patient).call()
+        
+        result = []
+        for item in history:
+            result.append({
+                "id": item[0],
+                "historyData": item[1],
+                "patientAddress": item[2],
+                "timestamp": item[3]
+            })
+        # Sort by timestamp descending
+        result.sort(key=lambda x: x["timestamp"], reverse=True)
+        return result
+    except Exception as e:
+        print(f"[ERROR] Error get_search_history_on_chain({patient_wallet}): {e}")
+        return []

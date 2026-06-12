@@ -76,7 +76,7 @@ export default function PerizinanDokter() {
     try {
       const response = await fetch("http://localhost:8000/api/doctors");
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Gagal mengambil daftar dokter");
+      if (!response.ok) throw new Error(data.error || "Gagal mengambil daftar tenaga medis");
 
     const filteredDoctorList = (data.doctors || []).filter(
       (doc) =>
@@ -91,7 +91,7 @@ export default function PerizinanDokter() {
         await checkAllConsents(filteredDoctorList);
       }
     } catch (err) {
-      console.error("Gagal fetch daftar dokter:", err);
+      console.error("Gagal fetch daftar tenaga medis:", err);
     } finally {
       setIsLoadingDoctors(false);
     }
@@ -134,11 +134,11 @@ export default function PerizinanDokter() {
       if (currentConsent) {
         tx = await contract.revokeConsent(doctorWallet);
         await tx.wait();
-        showToast("success", "Izin Dicabut", "Izin berhasil dicabut dari dokter ini.");
+        showToast("success", "Izin Dicabut", "Izin berhasil dicabut dari tenaga medis ini.");
       } else {
         tx = await contract.grantConsent(doctorWallet);
         await tx.wait();
-        showToast("success", "Izin Diberikan", "Izin berhasil diberikan! Dokter ini sekarang dapat mengisi rekam medis Anda.");
+        showToast("success", "Izin Diberikan", "Izin berhasil diberikan! Tenaga medis ini sekarang dapat mengisi rekam medis Anda.");
       }
 
       setConsentMap((prev) => ({ ...prev, [normalizedDoctor]: !currentConsent }));
@@ -154,7 +154,7 @@ export default function PerizinanDokter() {
       const errMsg = err?.data?.message || err?.message || "";
 
       if (revertReason.includes("belum di-ACC") || errMsg.includes("belum di-ACC")) {
-        showToast("error", "Akun Belum Disetujui", "Akun Anda perlu disetujui oleh Administrator Herbalyze terlebih dahulu sebelum bisa memberikan izin ke dokter.");
+        showToast("error", "Akun Belum Disetujui", "Akun Anda perlu disetujui oleh Administrator Herbalyze terlebih dahulu sebelum bisa memberikan izin ke tenaga medis.");
       } else if (revertReason.includes("Consent sudah diberikan") || errMsg.includes("Consent sudah diberikan")) {
         showToast("info", "Info", "Izin sudah diberikan sebelumnya.");
       } else if (revertReason.includes("Consent belum pernah") || errMsg.includes("Consent belum pernah")) {
@@ -204,7 +204,7 @@ export default function PerizinanDokter() {
           <Avatar name={doc.name} fotoProfil={doc.foto_profil} size="md" />
           <div>
             <div className="flex items-center gap-2">
-              <p className="font-semibold text-gray-800 text-sm">{doc.name || "Dokter"}</p>
+              <p className="font-semibold text-gray-800 text-sm">{doc.name || "Tenaga Medis"}</p>
               {hasConsent && (
                 <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                   ✓ Diizinkan
@@ -282,8 +282,8 @@ export default function PerizinanDokter() {
       <div className="max-w-6xl mx-auto px-4 mt-16 pb-20 relative">
 
         <div className="text-center mb-10">
-          <h1 className="text-2xl font-bold text-dark-50 mb-2">Perizinan Dokter</h1>
-          <p className="text-gray-500">Kelola akses dokter terhadap rekam medis Anda</p>
+          <h1 className="text-2xl font-bold text-dark-50 mb-2">Perizinan Tenaga Medis</h1>
+          <p className="text-gray-500">Kelola akses tenaga medis terhadap rekam medis Anda</p>
         </div>
 
         <div className="bg-blue-50 border border-blue-100 rounded-2xl px-6 py-4 mb-8 flex items-start gap-3">
@@ -291,7 +291,7 @@ export default function PerizinanDokter() {
           <div>
             <p className="text-sm font-semibold text-blue-700">Kontrol Penuh Ada di Tangan Anda</p>
             <p className="text-sm text-blue-600">
-              Hanya dokter yang Anda beri izin yang dapat menambahkan catatan medis ke rekam medis Anda.
+              Hanya tenaga medis yang Anda beri izin yang dapat menambahkan catatan medis ke rekam medis Anda.
               Izin disimpan secara aman dan dapat dicabut kapan saja.
             </p>
           </div>
@@ -308,7 +308,7 @@ export default function PerizinanDokter() {
                   : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >
-              <Users size={15} /> Semua Dokter
+              <Users size={15} /> Semua Tenaga Medis
               {!isLoadingDoctors && (
                 <span className="ml-1 bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
                   {filteredDoctors.length}
@@ -323,7 +323,7 @@ export default function PerizinanDokter() {
                   : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >
-              <UserCheck size={15} /> Dokter Saya
+              <UserCheck size={15} /> Tenaga Medis Saya
               {dokterDiizinkan.length > 0 && (
                 <span className={`ml-1 text-xs px-2 py-0.5 rounded-full font-bold ${
                   activeTab === "diizinkan"
@@ -361,13 +361,13 @@ export default function PerizinanDokter() {
                 {isLoadingDoctors ? (
                   <div className="flex flex-col items-center justify-center py-20">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-40 mb-4"></div>
-                    <p className="text-gray-400">Memuat daftar dokter...</p>
+                    <p className="text-gray-400">Memuat daftar tenaga medis...</p>
                   </div>
                 ) : filteredDoctors.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                     <p className="text-4xl mb-3">👨‍⚕️</p>
-                    <p className="text-gray-500 font-medium">Belum ada dokter terverifikasi</p>
-                    <p className="text-gray-400 text-sm mt-1">Tunggu hingga admin memverifikasi akun dokter</p>
+                    <p className="text-gray-500 font-medium">Belum ada tenaga medis terverifikasi</p>
+                    <p className="text-gray-400 text-sm mt-1">Tunggu hingga admin memverifikasi akun tenaga medis</p>
                   </div>
                 ) : (
                   <>
@@ -392,13 +392,13 @@ export default function PerizinanDokter() {
                 {isLoadingDoctors ? (
                   <div className="flex flex-col items-center justify-center py-20">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-400 mb-4"></div>
-                    <p className="text-gray-400">Memeriksa izin dokter...</p>
+                    <p className="text-gray-400">Memeriksa izin tenaga medis...</p>
                   </div>
                 ) : dokterDiizinkan.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                     <p className="text-4xl mb-3">🔓</p>
-                    <p className="text-gray-500 font-medium">Belum ada dokter yang diizinkan</p>
-                    <p className="text-gray-400 text-sm mt-1">Beri izin dokter dari tab <strong>Semua Dokter</strong></p>
+                    <p className="text-gray-500 font-medium">Belum ada tenaga medis yang diizinkan</p>
+                    <p className="text-gray-400 text-sm mt-1">Beri izin tenaga medis dari tab <strong>Semua Tenaga Medis</strong></p>
                   </div>
                 ) : (
                   <>

@@ -662,7 +662,7 @@ export default function CatatanDokter() {
                     onClick={() => handleCariRekomendasiAI(selectedRecord)}
                     className="bg-gradient-to-r from-primary-40 to-primary-60 text-white font-bold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-transform active:scale-95 flex items-center gap-2"
                   >
-                    <Sparkles size={16} /> Cari Rekomendasi Herbal dengan AI
+                    <Sparkles size={16} /> Cari Rekomendasi Herbal Relevan
                   </button>
                 </div>
               </div>
@@ -1146,7 +1146,7 @@ export default function CatatanDokter() {
                                       handleCariRekomendasiAI(record)
                                     }
                                     className="bg-gradient-to-r from-primary-40 to-primary-60 text-white font-bold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-transform active:scale-95 text-xs whitespace-nowrap flex items-center gap-1.5"
-                                    title="Cari Rekomendasi Herbal dengan AI SBERT"
+                                    title="Cari Rekomendasi Herbal Relevan"
                                   >
                                     <Sparkles size={13} /> Cari Herbal
                                   </button>

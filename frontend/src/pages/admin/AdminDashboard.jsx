@@ -31,7 +31,7 @@ export default function AdminDashboard() {
       const data = await response.json();
       setPendingDoctors(data);
     } catch (error) {
-      console.error("Gagal mengambil data antrean dokter:", error);
+      console.error("Gagal mengambil data antrean tenaga medis:", error);
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export default function AdminDashboard() {
         showToast(
           'success',
           'Berhasil',
-          `${nama} telah resmi disahkan sebagai dokter terverifikasi.`
+          `${nama} telah resmi disahkan sebagai tenaga medis terverifikasi.`
         );
       }
       fetchPendingDoctors();
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
                       <td className="py-4 px-4">
                         {doc.nomor_str ? (
                           <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
-                            Dokter Baru
+                            Tenaga Medis Baru
                           </span>
                         ) : (
                           <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-xs text-gray-400">Jenis Pengajuan</p>
                   <p className="font-semibold">
-                    {selectedDoctor.instansi_lama ? "Perubahan Instansi" : "Pendaftaran Dokter Baru"}
+                    {selectedDoctor.instansi_lama ? "Perubahan Instansi" : "Pendaftaran Tenaga Medis Baru"}
                   </p>
                 </div>
 

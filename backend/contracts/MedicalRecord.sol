@@ -15,6 +15,17 @@ contract MedicalRecordSystem {
     mapping(uint256 => MedicalRecord) public records;
     uint256 public recordCount;
 
+    // Struktur Data untuk Riwayat Pencarian (Search History)
+    struct SearchHistoryRecord {
+        uint256 id;
+        string historyData; // JSON penuh dari histori pencarian
+        address patientAddress;
+        uint256 timestamp;
+    }
+
+    mapping(address => SearchHistoryRecord[]) public patientSearchHistory;
+    uint256 public searchHistoryCount;
+
     // Role Management (Manajemen Akses)
     mapping(address => bool) public isAdmin;
     mapping(address => bool) public isApprovedUser; // Pasien/Dokter yang sudah di-ACC oleh Admin
@@ -31,6 +42,7 @@ contract MedicalRecordSystem {
     event MedicalRecordAdded(uint256 indexed recordId, address indexed patientAddress, address indexed uploader, uint256 timestamp);
     event ConsentGranted(address indexed patient, address indexed doctor);
     event ConsentRevoked(address indexed patient, address indexed doctor);
+    event SearchHistoryAdded(uint256 indexed historyId, address indexed patientAddress, uint256 timestamp);
 
     // Saat contract di-deploy, pendeploy akan otomatis menjadi Admin utama
     constructor() {
@@ -144,5 +156,26 @@ contract MedicalRecordSystem {
         require(_recordId > 0 && _recordId <= recordCount, "Record tidak ditemukan.");
         MedicalRecord memory rec = records[_recordId];
         return (rec.encryptedData, rec.patientAddress, rec.uploader, rec.timestamp);
+    }
+
+    // --- Fungsi Utama Riwayat Pencarian (Search History) ---
+
+    // Fungsi untuk menyimpan history pencarian (Hanya dipanggil oleh backend/admin)
+    function addSearchHistory(address _patient, string memory _historyData) public onlyAdmin {
+        searchHistoryCount++;
+        
+        patientSearchHistory[_patient].push(SearchHistoryRecord({
+            id: searchHistoryCount,
+            historyData: _historyData,
+            patientAddress: _patient,
+            timestamp: block.timestamp
+        }));
+
+        emit SearchHistoryAdded(searchHistoryCount, _patient, block.timestamp);
+    }
+
+    // Fungsi untuk mengambil seluruh riwayat pencarian pasien
+    function getSearchHistory(address _patient) public view returns (SearchHistoryRecord[] memory) {
+        return patientSearchHistory[_patient];
     }
 }

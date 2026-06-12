@@ -85,7 +85,7 @@ export default function AiSearch() {
         body: JSON.stringify(payload)
       });
       
-      if (!res.ok) throw new Error("Terjadi kesalahan pada server AI");
+      if (!res.ok) throw new Error("Terjadi kesalahan pada server pencarian");
       
       const results = await res.json();
       
@@ -97,7 +97,7 @@ export default function AiSearch() {
 
     } catch (err) {
       console.error("API Error:", err);
-      setErrorMessage({ type: "Gagal Menganalisis", text: "Sistem AI sedang sibuk atau terjadi kesalahan jaringan." });
+      setErrorMessage({ type: "Gagal Menganalisis", text: "Sistem analisis sedang sibuk atau terjadi kesalahan jaringan." });
       setIsLoading(false);
     }
   };
@@ -110,10 +110,10 @@ export default function AiSearch() {
         
         {/* Header Section */}
         <div className="text-center mb-10">
-          <span className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-4 inline-block">Sistem Cerdas Bertenaga AI</span>
+          <span className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-4 inline-block">Pencarian Pintar Rekomendasi Herbal</span>
           <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 mb-3">Pencarian Rekomendasi Pintar</h1>
           <p className="text-gray-500 max-w-xl mx-auto">
-            Sistem SBERT (Sentence-BERT) kami akan menganalisis makna dari teks diagnosis Anda dan mencocokkannya dengan <strong>seluruh</strong> database tanaman herbal yang relevan.
+            Sistem pencarian kami akan menganalisis arti dari deskripsi diagnosis Anda dan mencocokkannya dengan seluruh daftar tanaman herbal yang tersedia.
           </p>
         </div>
 
@@ -137,8 +137,8 @@ export default function AiSearch() {
               />
               <p className="text-xs text-gray-400 mt-2 ml-1">
                 {isFromDoctor
-                  ? "Data ini berasal dari catatan dokter Anda dan tidak dapat diubah."
-                  : "Ceritakan keluhan Anda untuk dianalisis oleh sistem AI."}
+                  ? "Data ini berasal dari catatan tenaga medis Anda dan tidak dapat diubah."
+                  : "Ceritakan keluhan Anda untuk dianalisis oleh sistem kami."}
               </p>
             </div>
 
@@ -167,9 +167,9 @@ export default function AiSearch() {
                 className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-10 py-4 rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
-                  <><Loader2 size={16} className="animate-spin" /> Memproses AI...</>
+                  <><Loader2 size={16} className="animate-spin" /> Mencari rekomendasi...</>
                 ) : (
-                  <><Sparkles size={16} /> Analisis dengan AI</>
+                  <><Sparkles size={16} /> Cari Rekomendasi Pintar</>
                 )}
               </button>
             </div>

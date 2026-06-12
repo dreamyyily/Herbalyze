@@ -675,7 +675,7 @@ const handleDoctorFileSIP = (e) => {
                       </p>
                       <p className="text-red-700 mt-2 text-sm">
                         Silakan ajukan ulang atau batalkan pengajuan untuk
-                        kembali ke status dokter terverifikasi.
+                        kembali ke status tenaga medis terverifikasi.
                       </p>
                     </div>
                   </div>
@@ -707,7 +707,7 @@ const handleDoctorFileSIP = (e) => {
                   </div>
                   <div className="flex-1">
                     <h4 className="text-xl font-bold text-blue-800">
-                      Dokter Terverifikasi
+                      Tenaga Medis Terverifikasi
                     </h4>
                     <p className="text-blue-600 mt-1 text-sm">
                       Akun Anda memiliki wewenang penuh untuk mencatat rekam
@@ -821,7 +821,7 @@ const handleDoctorFileSIP = (e) => {
                     onClick={handleOpenDoctorModal}
                     className="bg-primary-40 hover:bg-primary-50 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
                   >
-                    Ajukan Verifikasi Dokter
+                    Ajukan Verifikasi Tenaga Medis
                   </button>
                 </div>
               )}
@@ -835,7 +835,7 @@ const handleDoctorFileSIP = (e) => {
             <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl p-8 max-h-[95vh] overflow-y-auto relative">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-extrabold text-dark-50">
-                  Pengajuan Akses Dokter
+                  Pengajuan Akses Tenaga Medis
                 </h3>
                 <button
                   onClick={() => setIsDoctorModalOpen(false)}
@@ -1007,7 +1007,7 @@ const handleDoctorFileSIP = (e) => {
               </h3>
               <p className="text-gray-500 text-sm leading-relaxed mb-10 px-2">
                 Harap lengkapi informasi data personal Anda terlebih dahulu
-                sebelum mengajukan verifikasi akses Dokter.
+                sebelum mengajukan verifikasi akses Tenaga Medis.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 w-full">
                 <button

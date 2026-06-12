@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Request
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
@@ -16,9 +16,9 @@ import re
 import time
 
 from db import get_db, Base, engine
-from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, SearchHistory, MedicalRecordDraft
+from models import User, HerbalDiagnosis, HerbalSymptom, HerbalSpecialCondition, MedicalRecordDraft
 from fastapi.encoders import jsonable_encoder
-from blockchain_service import approve_wallet_on_chain, add_medical_record_on_chain
+from blockchain_service import approve_wallet_on_chain, add_medical_record_on_chain, add_search_history_on_chain, get_search_history_on_chain
 from datetime import datetime
 from dotenv import load_dotenv
 import requests
@@ -60,7 +60,7 @@ def _load_json_config(filename: str, key: str) -> list:
         with open(path, "r", encoding="utf-8") as f:
             return _json_lib.load(f).get(key, [])
     except Exception as e:
-        print(f"⚠️ Gagal load config '{filename}': {e}")
+        print(f" Gagal load config '{filename}': {e}")
         return []
 
 NLP_STOPWORDS        = set(_load_json_config("stopwords.json",  "stopwords"))
@@ -68,8 +68,8 @@ NLP_NEGATION_WORDS   = set(_load_json_config("negation.json",   "negation_words"
 NLP_NEGATION_PHRASES = list(_load_json_config("negation.json",  "negation_phrases"))
 
 print(NLP_STOPWORDS)
-print(f"✅ Negation words loaded  : {NLP_NEGATION_WORDS}")
-print(f"✅ Negation phrases loaded: {NLP_NEGATION_PHRASES}")
+print(f"[OK] Negation words loaded  : {NLP_NEGATION_WORDS}")
+print(f"[OK] Negation phrases loaded: {NLP_NEGATION_PHRASES}")
 
 def _get_active_mode() -> str:
     try:
@@ -91,7 +91,7 @@ def _get_active_mode() -> str:
         return "hybrid_rag"
 
 ACTIVE_MODE = _get_active_mode()
-print(f"✅ Mode aktif: {ACTIVE_MODE.upper()}")
+print(f" Mode aktif: {ACTIVE_MODE.upper()}")
 
 # ==============================================================================
 # GLOBAL UTILITY FUNCTIONS
@@ -129,7 +129,7 @@ def get_user_allergies(wallet_address: str, db: Session) -> set:
                         result.add(clean)
         return result
     except Exception as e:
-        print(f"⚠️ Gagal ambil alergi user: {e}")
+        print(f" Gagal ambil alergi user: {e}")
         return set()
 
 
@@ -166,7 +166,7 @@ def is_child_under_five(wallet_address: str, db: Session) -> bool:
         tgl = datetime.strptime(user.tanggal_lahir, "%Y-%m-%d").date() if isinstance(user.tanggal_lahir, str) else user.tanggal_lahir
         return (datetime.utcnow().date() - tgl).days / 365.25 < 5
     except Exception as e:
-        print(f"⚠️ Gagal cek usia user: {e}")
+        print(f" Gagal cek usia user: {e}")
         return False
 
 
@@ -311,22 +311,22 @@ def apply_all_filters_global(herb_names_set, label, conditions, allergies, db: S
         all_unsafe    : list dict unsafe_herbs (kondisi + alergi)
     """
     count_raw = len(herb_names_set)
-    print(f"\n   📋 [FILTER '{label}'] Total herbal ditemukan: {count_raw}")
+    print(f"\n    [FILTER '{label}'] Total herbal ditemukan: {count_raw}")
     print(f"   {'─'*50}")
 
     # ── Filter 1: Kondisi Khusus ──
     if conditions:
-        print(f"   🔎 Filter Kondisi Khusus ({', '.join(conditions)}):")
+        print(f"    Filter Kondisi Khusus ({', '.join(conditions)}):")
     safe_names, unsafe_rbs = get_safe_herbs_global(herb_names_set, conditions, db)
     count_rbs = count_raw - len(safe_names)
     if count_rbs == 0:
-        print(f"      ✅ Tidak ada yang dieliminasi kondisi khusus")
+        print(f"       Tidak ada yang dieliminasi kondisi khusus")
 
     # ── Filter 2: Alergi Personal ──
     details_before = get_details_global(safe_names, db)
     names_before   = {h['name'].splitlines()[0] for h in details_before}
     if allergies:
-        print(f"   🔎 Filter Alergi ({', '.join(allergies)}):")
+        print(f"    Filter Alergi ({', '.join(allergies)}):")
     details_final  = filter_allergies(details_before, allergies)
     names_after    = {h['name'].splitlines()[0] for h in details_final}
     elim_allergy   = names_before - names_after
@@ -345,7 +345,7 @@ def apply_all_filters_global(herb_names_set, label, conditions, allergies, db: S
             })
 
     if not elim_allergy and allergies:
-        print(f"      ✅ Tidak ada yang dieliminasi karena alergi")
+        print(f"       Tidak ada yang dieliminasi karena alergi")
 
     all_unsafe = unsafe_rbs + unsafe_allergy
 
@@ -368,12 +368,24 @@ def apply_all_filters_global(herb_names_set, label, conditions, allergies, db: S
         print(f"      🚫 Eliminasi alergi   : 0 herbal")
 
     lolos = sorted([h['name'].splitlines()[0] for h in details_final])
-    print(f"      ✅ Lolos & ditampilkan: {len(details_final)} herbal")
+    print(f"       Lolos & ditampilkan: {len(details_final)} herbal")
     if lolos:
         print(f"         → {', '.join(lolos)}")
 
     return details_final, all_unsafe
 
+
+# ==============================================================================
+# GLOBAL SBERT & CHROMADB SETUP (LOAD ONCE)
+# ==============================================================================
+
+print("⏳ Memuat Model SBERT (intfloat/multilingual-e5-small) secara global...")
+from sentence_transformers import SentenceTransformer
+import chromadb
+model_ai = SentenceTransformer('intfloat/multilingual-e5-small')
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+chroma_collection = chroma_client.get_collection(name="med_labels")
+print(" Model SBERT dan ChromaDB terload secara global.")
 
 # ==============================================================================
 # APP SETUP
@@ -519,8 +531,8 @@ def connect_wallet(req: ConnectWalletRequest, db: Session = Depends(get_db)):
     user.role = 'Patient' if user.role == 'Pending' else user.role
     db.commit(); db.refresh(user)
     blockchain_result = approve_wallet_on_chain(wallet_addr)
-    if blockchain_result.get("success"): print(f"✅ Blockchain approve sukses untuk {wallet_addr}")
-    else: print(f"⚠️ Blockchain approve gagal (non-fatal): {blockchain_result.get('error')}")
+    if blockchain_result.get("success"): print(f" Blockchain approve sukses untuk {wallet_addr}")
+    else: print(f" Blockchain approve gagal (non-fatal): {blockchain_result.get('error')}")
     return {"message": "Wallet linked successfully", "user": user.to_dict(), "blockchain_approved": blockchain_result.get("success", False)}
 
 
@@ -710,9 +722,9 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         obat_kimia = data.get('obat_kimia', [])
 
         print(f"\n{'='*70}")
-        print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI EXACT MATCHING (SQL)")
-        print(f"📥 Input Diagnosis : {sel_diag}")
-        print(f"📥 Input Gejala    : {sel_symp}")
+        print(f" [ENGINE START] ANALISIS REKOMENDASI EXACT MATCHING (SQL)")
+        print(f" Input Diagnosis : {sel_diag}")
+        print(f" Input Gejala    : {sel_symp}")
         print(f"{'='*70}")
 
         condition_mapping = {"Ibu hamil": "Hamil", "Ibu menyusui": "Menyusui", "Anak di bawah lima tahun": "anak di bawah 5 tahun"}
@@ -721,23 +733,23 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
         if is_child_under_five(wallet_addr, db):
             if "anak di bawah 5 tahun" not in sel_cond:
                 sel_cond.append("anak di bawah 5 tahun")
-                print(f"👶 [RBS-AUTO] User {wallet_addr} terdeteksi berusia <5 tahun, kondisi ditambahkan otomatis.")
+                print(f" [RBS-AUTO] User {wallet_addr} terdeteksi berusia <5 tahun, kondisi ditambahkan otomatis.")
 
         user_allergies = get_user_allergies(wallet_addr, db)
-        print(f"⚙️  [PRE-PROCESS] Kondisi : {sel_cond if sel_cond else 'Normal'}")
-        print(f"⚠️  [ALERGI]      Daftar  : {user_allergies if user_allergies else 'Tidak ada'}")
+        print(f"⚙  [PRE-PROCESS] Kondisi : {sel_cond if sel_cond else 'Normal'}")
+        print(f"  [ALERGI]      Daftar  : {user_allergies if user_allergies else 'Tidak ada'}")
 
         grouped_results = []
         all_diags = db.execute(text("SELECT diagnosis, herbal_name FROM herbal_diagnoses")).fetchall()
         all_symps = db.execute(text("SELECT symptom,   herbal_name FROM herbal_symptoms")).fetchall()
 
         for d in sel_diag:
-            print(f"\n🔍 [SQL] Mencari diagnosis: '{d}'")
+            print(f"\n [SQL] Mencari diagnosis: '{d}'")
             found = {r[1] for r in all_diags if r[0] and r[0].strip().lower() == d.strip().lower()}
             if not found:
-                print(f"   ❌ Tidak ada data untuk '{d}'."); continue
-            print(f"   📋 Ditemukan {len(found)} herbal. Menjalankan filter...")
-            if sel_cond: print(f"   🔎 Filter Kondisi ({', '.join(sel_cond)}):")
+                print(f"    Tidak ada data untuk '{d}'."); continue
+            print(f"    Ditemukan {len(found)} herbal. Menjalankan filter...")
+            if sel_cond: print(f"    Filter Kondisi ({', '.join(sel_cond)}):")
             details_final, all_unsafe = apply_all_filters_global(found, d, sel_cond, user_allergies, db)
             if details_final or all_unsafe:
                 grouped_results.append({
@@ -747,14 +759,14 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
                     "unsafe_herbs": all_unsafe
                 })
             else:
-                print(f"   ⚠️ Tidak ada herbal aman maupun unsafe untuk '{d}'.")
+                print(f"    Tidak ada herbal aman maupun unsafe untuk '{d}'.")
         for s in sel_symp:
-            print(f"\n🔍 [SQL] Mencari gejala: '{s}'")
+            print(f"\n [SQL] Mencari gejala: '{s}'")
             found = {r[1] for r in all_symps if r[0] and r[0].strip().lower() == s.strip().lower()}
             if not found:
-                print(f"   ❌ Tidak ada data untuk '{s}'."); continue
-            print(f"   📋 Ditemukan {len(found)} herbal. Menjalankan filter...")
-            if sel_cond: print(f"   🔎 Filter Kondisi ({', '.join(sel_cond)}):")
+                print(f"    Tidak ada data untuk '{s}'."); continue
+            print(f"    Ditemukan {len(found)} herbal. Menjalankan filter...")
+            if sel_cond: print(f"    Filter Kondisi ({', '.join(sel_cond)}):")
             details_final, all_unsafe = apply_all_filters_global(found, s, sel_cond, user_allergies, db)
             if details_final or all_unsafe:
                 grouped_results.append({
@@ -764,21 +776,28 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
                     "unsafe_herbs": all_unsafe
                 })
             else:
-                print(f"   ⚠️ Tidak ada herbal aman maupun unsafe untuk '{s}'.")
+                print(f"    Tidak ada herbal aman maupun unsafe untuk '{s}'.")
 
-        print(f"\n✨ [FINISH] Analisis selesai. Ditemukan {len(grouped_results)} kategori.")
+        print(f"\n [FINISH] Analisis selesai. Ditemukan {len(grouped_results)} kategori.")
         print(f"{'='*70}\n")
 
         if grouped_results:
             try:
-                new_history = SearchHistory(
-                    wallet_address=wallet_addr.lower(), diagnoses=sel_diag, symptoms=sel_symp,
-                    special_conditions=raw_cond, chemical_drugs=obat_kimia, recommendations=grouped_results
-                )
-                db.add(new_history); db.commit(); db.refresh(new_history)
-                print(f"✅ [HISTORY] Berhasil tersimpan (ID: {new_history.id})")
+                history_data = {
+                    "diagnoses": sel_diag,
+                    "symptoms": sel_symp,
+                    "special_conditions": raw_cond,
+                    "chemical_drugs": obat_kimia,
+                    "recommendations": grouped_results
+                }
+                history_json_str = _json_lib.dumps(history_data)
+                bc_res = add_search_history_on_chain(wallet_addr.lower(), history_json_str)
+                if bc_res.get("success"):
+                    print(f" [HISTORY] Berhasil tersimpan ke Blockchain. TX: {bc_res.get('tx_hash')}")
+                else:
+                    print(f" [HISTORY] Gagal simpan ke Blockchain: {bc_res.get('error')}")
             except Exception as e:
-                db.rollback(); print(f"❌ [HISTORY] Gagal simpan: {str(e)}")
+                print(f" [HISTORY] Gagal proses Blockchain: {str(e)}")
 
         return grouped_results
 
@@ -792,13 +811,13 @@ async def recommend_herbal(request: Request, db: Session = Depends(get_db)):
 # ==============================================================================
 
 @app.post("/api/recommend_hybrid")
-async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
+async def recommend_hybrid(req: HybridRequest, response: Response, db: Session = Depends(get_db)):
     start_total = time.time()
     print(f"[DEBUG] ACTIVE_MODE dari config: {ACTIVE_MODE}")
     print(f"[DEBUG] Path config: {_CONFIG_DIR}")
     print(f"\n{'='*70}")
-    print(f"🚀 [ENGINE START] ANALISIS REKOMENDASI HYBRID (SQL + SBERT)")
-    print(f"📥 Input Teks : '{req.query_text}'")
+    print(f" [ENGINE START] ANALISIS REKOMENDASI HYBRID (SQL + SBERT)")
+    print(f" Input Teks : '{req.query_text}'")
     print(f"{'='*70}")
 
     try:
@@ -811,28 +830,33 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
         if is_child_under_five(req.wallet_address, db):
             if "anak di bawah 5 tahun" not in sel_cond:
                 sel_cond.append("anak di bawah 5 tahun")
-                print(f"👶 [RBS-AUTO] Usia <5 tahun terdeteksi → kondisi ditambahkan.")
+                print(f" [RBS-AUTO] Usia <5 tahun terdeteksi → kondisi ditambahkan.")
 
         user_allergies = get_user_allergies(req.wallet_address, db)
-        print(f"\n📋 [PRE-PROCESS SUMMARY]")
+        print(f"\n [PRE-PROCESS SUMMARY]")
         print(f"   Kondisi Khusus : {sel_cond if sel_cond else 'Tidak ada'}")
         print(f"   Alergi User    : {user_allergies if user_allergies else 'Tidak ada'}")
 
         def save_history(result_group):
             try:
-                new_history = SearchHistory(
-                    wallet_address=req.wallet_address.lower(),
-                    diagnoses=[f"Analisis: {req.query_text[:50]}..."], symptoms=[],
-                    special_conditions=req.kondisi, chemical_drugs=req.obat_kimia,
-                    recommendations=result_group
-                )
-                db.add(new_history); db.commit()
-                print(f"💾 [HISTORY] Tersimpan via ORM untuk: {req.wallet_address}")
+                history_data = {
+                    "diagnoses": [f"Analisis: {req.query_text[:50]}..."],
+                    "symptoms": [],
+                    "special_conditions": req.kondisi,
+                    "chemical_drugs": req.obat_kimia,
+                    "recommendations": result_group
+                }
+                history_json_str = _json_lib.dumps(history_data)
+                bc_res = add_search_history_on_chain(req.wallet_address.lower(), history_json_str)
+                if bc_res.get("success"):
+                    print(f" [HISTORY] Tersimpan ke Blockchain untuk: {req.wallet_address}. TX: {bc_res.get('tx_hash')}")
+                else:
+                    print(f" [HISTORY] Gagal simpan ke Blockchain: {bc_res.get('error')}")
             except Exception as e:
-                db.rollback(); print(f"⚠️ [HISTORY] Gagal simpan: {e}")
+                print(f" [HISTORY] Gagal proses Blockchain: {e}")
 
         # ── NLP CHUNKING ──
-        print(f"\n🧩 [NLP] Memecah kalimat input...")
+        print(f"\n [NLP] Memecah kalimat input...")
         print(f"   Mode aktif : {ACTIVE_MODE.upper()}")
 
         delimiters = r'[.,;/!]|\bdan juga\b|\bdan\b|\bserta\b|\bjuga\b|\bmaupun\b|\bdisertai\b|\bbersama\b|\bplus\b|\bditambah\b|\bselain itu\b|\blainnya\b|\btermasuk\b|\bseperti\b|\btetapi\b'
@@ -887,7 +911,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                 result = " ".join(filtered).strip()
                 if len(result) > 2:
                     clean_chunks.append(result)
-                    print(f"   ✅ [POSITIF] '{result}' diproses.")
+                    print(f"    [POSITIF] '{result}' diproses.")
             else:
                 # Tidak ada negasi → proses normal
                 filtered_words = [w for w in words if w not in NLP_STOPWORDS]
@@ -910,16 +934,16 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
         if ACTIVE_MODE == "hybrid_rag":
             start_l1 = time.time()
             print(f"\n{'─'*60}")
-            print(f"🔍 [LAPIS 1] SQL EXACT MATCHING (mode: {ACTIVE_MODE})")
+            print(f" [LAPIS 1] SQL EXACT MATCHING (mode: {ACTIVE_MODE})")
             print(f"{'─'*60}")
 
             for chunk in clean_chunks:
-                print(f"\n   🔎 Mencari: '{chunk}'")
+                print(f"\n    Mencari: '{chunk}'")
                 diag_db = db.execute(text("SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
                 symp_db = db.execute(text("SELECT herbal_name FROM herbal_symptoms  WHERE TRIM(symptom)   ILIKE TRIM(:q)"), {"q": chunk}).fetchall()
 
                 if diag_db or symp_db:
-                    print(f"   ✅ Ditemukan sebagai {'Diagnosis' if diag_db else 'Gejala'}")
+                    print(f"    Ditemukan sebagai {'Diagnosis' if diag_db else 'Gejala'}")
                     baku_name = chunk.strip().capitalize()
                     db_res    = diag_db if diag_db else symp_db
                     herbs_list, unsafe_list = apply_all_filters_global(
@@ -946,17 +970,17 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                                 if u["name"] not in existing_unsafe:
                                     grouped_data[baku_name]["unsafe_herbs"].append(u)
                     else:
-                        print(f"   ⚠️ Semua herbal '{chunk}' dieliminasi filter.")
+                        print(f"    Semua herbal '{chunk}' dieliminasi filter.")
                 else:
-                    print(f"   ❌ Tidak ditemukan SQL → ke Lapis 2")
+                    print(f"    Tidak ditemukan SQL → ke Lapis 2")
                     chunks_to_ai.append(chunk)
 
-            print(f"\n⏱️  Lapis 1 selesai: {(time.time() - start_l1)*1000:.2f} ms")
+            print(f"\n  Lapis 1 selesai: {(time.time() - start_l1)*1000:.2f} ms")
 
         else:
             # pure_sbert / rag → semua chunk langsung ke Lapis 2
             chunks_to_ai = clean_chunks
-            print(f"\n⏭️  [LAPIS 1] DILEWATI (mode: {ACTIVE_MODE}) → semua chunk ke Lapis 2")
+            print(f"\n⏭  [LAPIS 1] DILEWATI (mode: {ACTIVE_MODE}) → semua chunk ke Lapis 2")
 
         # ══════════════════════════════════════════════════════════════════
         # LAPIS 2: SBERT / RAG SEMANTIC MATCHING
@@ -964,6 +988,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
         # Isi ChromaDB (pure vs sinonim) sudah ditentukan saat update_dataset
         # ══════════════════════════════════════════════════════════════════
         final_result_groups = []
+        l2_time = 0.0
 
         if chunks_to_ai:
             start_l2 = time.time()
@@ -977,16 +1002,10 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
             print(f"🧠 [LAPIS 2] {mode_label}")
             print(f"{'─'*60}")
 
-            from sentence_transformers import SentenceTransformer
-            import chromadb
-            model_ai      = SentenceTransformer('intfloat/multilingual-e5-small')
-            chroma_client = chromadb.PersistentClient(path="./chroma_db")
-            collection    = chroma_client.get_collection(name="med_labels")
-
             for chunk in chunks_to_ai:
-                print(f"\n   🔎 Menganalisis: '{chunk}'")
+                print(f"\n    Menganalisis: '{chunk}'")
                 cv = model_ai.encode([f"query: {chunk}"]).tolist()
-                sr = collection.query(query_embeddings=cv, n_results=1)
+                sr = chroma_collection.query(query_embeddings=cv, n_results=1)
 
                 if sr['distances'][0]:
                     similarity = (1 - sr['distances'][0][0]) * 100
@@ -995,7 +1014,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                     print(f"   🤖 SBERT: '{chunk}' → '{label_baku}' (similarity: {similarity:.2f}%)")
 
                     if similarity >= 88.0:
-                        print(f"   ✅ Diterima (≥88%). Mapping ke database...")
+                        print(f"    Diterima (≥88%). Mapping ke database...")
                         is_diag = db.execute(text("SELECT 1 FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)"), {"q": label_baku}).first()
                         ai_db   = db.execute(text("""
                             SELECT herbal_name FROM herbal_diagnoses WHERE TRIM(diagnosis) ILIKE TRIM(:q)
@@ -1028,16 +1047,16 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                                     if u["name"] not in existing_unsafe:
                                         grouped_data[baku_cap]["unsafe_herbs"].append(u)
                         else:
-                            print(f"   ⚠️ Tidak ada hasil untuk '{label_baku}'.")
+                            print(f"    Tidak ada hasil untuk '{label_baku}'.")
                     else:
-                        print(f"   ⚠️ Ditolak (similarity {similarity:.2f}% < 88%).")
+                        print(f"    Ditolak (similarity {similarity:.2f}% < 88%).")
 
-            print(f"\n⏱️  Lapis 2 selesai: {(time.time() - start_l2)*1000:.2f} ms")
+            l2_time = (time.time() - start_l2) * 1000
+            print(f"\n  Lapis 2 selesai: {l2_time:.2f} ms")
 
         elif ACTIVE_MODE in ("pure_sbert", "rag") and not chunks_to_ai:
-            print(f"\n⚠️ Tidak ada chunk yang bisa dianalisis setelah filter negasi/stopword.")
-
-            print(f"\n⏱️  Lapis 2 selesai: {(time.time() - start_l2)*1000:.2f} ms")
+            print(f"\n Tidak ada chunk yang bisa dianalisis setelah filter negasi/stopword.")
+            print(f"\n  Lapis 2 selesai: {l2_time:.2f} ms")
 
         # ── FINAL CONSOLIDATION ──
         print(f"\n{'─'*60}")
@@ -1055,11 +1074,18 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
                 "herbs":        data["herbs"],
                 "unsafe_herbs": data.get("unsafe_herbs", []),
             })
-            print(f"   ✅ '{name}' → {len(data['herbs'])} aman, {len(data.get('unsafe_herbs', []))} dieliminasi")
+            print(f"    '{name}' → {len(data['herbs'])} aman, {len(data.get('unsafe_herbs', []))} dieliminasi")
 
         end_total = (time.time() - start_total) * 1000
+        overhead = max(0.0, end_total - l2_time)
+        
+        # Set response headers for Postman testing
+        response.headers["X-Semantic-Time-Ms"] = f"{l2_time:.2f}"
+        response.headers["X-Total-Time-Ms"] = f"{end_total:.2f}"
+        response.headers["X-Overhead-Ms"] = f"{overhead:.2f}"
+        
         print(f"\n{'='*70}")
-        print(f"✨ [SELESAI] {len(final_result_groups)} kategori ditemukan. ⏱️ {end_total:.2f} ms")
+        print(f" [SELESAI] {len(final_result_groups)} kategori ditemukan.  {end_total:.2f} ms")
         print(f"{'='*70}\n")
 
         if final_result_groups:
@@ -1068,7 +1094,7 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
         return []
 
     except Exception as e:
-        print(f"\n🔥 [CRITICAL ERROR] {e}")
+        print(f"\n [CRITICAL ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1080,48 +1106,36 @@ async def recommend_hybrid(req: HybridRequest, db: Session = Depends(get_db)):
 @app.get("/api/history/{wallet_address}")
 def get_user_history(wallet_address: str, db: Session = Depends(get_db)):
     try:
-        result = db.execute(text("""
-            SELECT id, diagnoses, symptoms, special_conditions, chemical_drugs, recommendations,
-                created_at, blockchain_tx_hash, blockchain_record_id
-            FROM search_history
-            WHERE wallet_address = :wallet AND (is_deleted = FALSE OR is_deleted IS NULL)
-            ORDER BY created_at DESC
-        """), {"wallet": wallet_address.lower()}).fetchall()
-        return [{
-            "id": r[0], "diagnoses": r[1], "symptoms": r[2], "special_conditions": r[3],
-            "chemical_drugs": r[4], "recommendations": r[5],
-            "created_at": (r[6].strftime("%Y-%m-%dT%H:%M:%S") + "Z") if r[6] else None,
-            "blockchain_tx_hash": r[7], "blockchain_record_id": r[8],
-            "is_on_blockchain": r[7] is not None
-        } for r in result]
+        blockchain_history = get_search_history_on_chain(wallet_address.lower())
+        results = []
+        
+        for item in blockchain_history:
+            try:
+                data = _json_lib.loads(item["historyData"])
+                dt = datetime.fromtimestamp(item["timestamp"])
+                results.append({
+                    "id": item["id"],
+                    "diagnoses": data.get("diagnoses", []),
+                    "symptoms": data.get("symptoms", []),
+                    "special_conditions": data.get("special_conditions", []),
+                    "chemical_drugs": data.get("chemical_drugs", []),
+                    "recommendations": data.get("recommendations", []),
+                    "created_at": (dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"),
+                    "blockchain_tx_hash": "Blockchain", # Dummy untuk frontend
+                    "is_on_blockchain": True
+                })
+            except Exception as e:
+                print(f"Gagal parse history JSON dari blockchain untuk id {item['id']}: {e}")
+                
+        return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/history/save-to-blockchain")
-def save_history_to_blockchain(req: UpdateBlockchainRequest, db: Session = Depends(get_db)):
-    try:
-        record = db.query(SearchHistory).filter(SearchHistory.id == req.history_id).first()
-        if not record: raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
-        if record.blockchain_tx_hash: raise HTTPException(status_code=400, detail="Riwayat ini sudah disimpan ke blockchain")
-        record.blockchain_tx_hash = req.tx_hash; record.blockchain_record_id = req.record_id
-        db.commit(); db.refresh(record)
-        return {"message": "Data blockchain berhasil disimpan", "history_id": record.id, "tx_hash": record.blockchain_tx_hash, "record_id": record.blockchain_record_id}
-    except HTTPException: raise
-    except Exception as e:
-        db.rollback(); raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.delete("/api/history/{history_id}")
 def delete_history(history_id: int, wallet_address: str, db: Session = Depends(get_db)):
-    try:
-        record = db.query(SearchHistory).filter(SearchHistory.id == history_id, SearchHistory.wallet_address == wallet_address.lower()).first()
-        if not record: raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
-        record.is_deleted = True; db.commit()
-        return {"message": "Riwayat berhasil dihapus dari tampilan", "note": "Data yang sudah tersimpan di blockchain tetap permanen.", "was_on_blockchain": record.blockchain_tx_hash is not None}
-    except HTTPException: raise
-    except Exception as e:
-        db.rollback(); raise HTTPException(status_code=500, detail=str(e))
+    # Fitur hapus dinonaktifkan secara fundamental karena blockchain immutable
+    raise HTTPException(status_code=400, detail="Riwayat di blockchain tidak dapat dihapus.")
 
 
 # ==============================================================================
@@ -1227,3 +1241,4 @@ def delete_account(req: DeleteAccountRequest, db: Session = Depends(get_db)):
     db.execute(text("DELETE FROM search_history WHERE wallet_address = :wallet"), {"wallet": wallet})
     db.delete(user); db.commit()
     return {"message": "Akun berhasil dihapus"}
+# Trigger reload: mode changed to hybrid_rag

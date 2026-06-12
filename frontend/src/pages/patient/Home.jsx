@@ -168,7 +168,7 @@ export default function Home() {
                 <SelectField label="Konsumsi Obat Kimia" required options={chemicalDrugOptions} value={selectedDrug} onChange={(c) => setSelectedDrug([c])} closeOnSelect={true} />
                 <p className="text-xs text-dark-30 flex items-start gap-1.5 -mt-6">
                   <AlertCircle size={12} className="flex-shrink-0 mt-0.5 text-primary-30" />
-                  Beri tahu kami jika Anda sedang mengonsumsi obat yang diresepkan dokter.
+                  Beri tahu kami jika Anda sedang mengonsumsi obat yang diresepkan tenaga medis.
                 </p>
               </div>
               </div>

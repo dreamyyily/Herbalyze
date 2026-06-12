@@ -64,7 +64,7 @@ const hasAnyResult = totalHerbs > 0 || totalUnsafe > 0;
       {/* --- HEADER HASIL PENCARIAN --- */}
       <div className="text-center mb-10">
         <h2 className="text-3xl md:text-4xl font-extrabold text-dark-50 mb-4">
-          Hasil Analisis AI <span className="text-primary-40">Herbalyze</span>
+          Hasil Rekomendasi Sistem <span className="text-primary-40">Herbalyze</span>
         </h2>
 
         {totalHerbs > 0 ? (
@@ -176,7 +176,7 @@ const hasAnyResult = totalHerbs > 0 || totalUnsafe > 0;
                         </p>
                         
                         <p className="text-[10px] text-indigo-400 mt-2 font-medium uppercase tracking-wider">
-                          Diverifikasi menggunakan arsitektur Hybrid-Search (SQL & SBERT)
+                          Diverifikasi berdasarkan database medis dan kesamaan arti gejala.
                         </p>
                       </div>
                       </div>

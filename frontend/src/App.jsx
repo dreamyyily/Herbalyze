@@ -19,7 +19,9 @@ const ProtectedRoute = ({ children }) => {
     useEffect(() => {
         const checkAuth = async () => {
             const address = await checkWalletConnection();
-            setIsAuthenticated(!!address);
+            const storedWallet = localStorage.getItem('user_wallet');
+            const isLoggedIn = !!(address && storedWallet && address.toLowerCase() === storedWallet.toLowerCase());
+            setIsAuthenticated(isLoggedIn);
         };
         checkAuth();
     }, []);
@@ -32,6 +34,46 @@ const ProtectedRoute = ({ children }) => {
     }
     return children;
 };
+
+const GuestRoute = ({ children }) => {
+    const [isAuthenticated, setIsAuthenticated] = useState(null);
+    const [userRole, setUserRole] = useState(null);
+    const [adminVerified, setAdminVerified] = useState(false);
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const address = await checkWalletConnection();
+            const storedWallet = localStorage.getItem('user_wallet');
+            const isLoggedIn = !!(address && storedWallet && address.toLowerCase() === storedWallet.toLowerCase());
+            
+            if (isLoggedIn) {
+                const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+                const verified = localStorage.getItem('admin_metamask_verified') === 'true';
+                setUserRole(profile.role);
+                setAdminVerified(verified);
+                setIsAuthenticated(true);
+            } else {
+                setIsAuthenticated(false);
+            }
+        };
+        checkAuth();
+    }, []);
+
+    if (isAuthenticated === null) {
+        return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    }
+
+    if (isAuthenticated) {
+        if (userRole === 'Admin' && adminVerified) {
+            return <Navigate to="/admin" replace />;
+        } else if (userRole && userRole !== 'Admin') {
+            return <Navigate to="/home" replace />;
+        }
+    }
+
+    return children;
+};
+
 
 const AdminRoute = ({ children }) => {
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -204,25 +246,7 @@ const AppContent = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    useEffect(() => {
-        const checkAutoLogin = async () => {
-            if (location.pathname === '/') {
-                const address = await checkWalletConnection();
-                const storedWallet = localStorage.getItem('user_wallet');
-                if (address && storedWallet && address.toLowerCase() === storedWallet.toLowerCase()) {
-                    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-                    const adminVerified = localStorage.getItem('admin_metamask_verified') === 'true';
-                    if (profile.role === 'Admin' && adminVerified) {
-                        navigate('/admin');
-                    } else if (profile.role !== 'Admin') {
-                        navigate('/home');
-                    }
-                    // Jika Admin tapi belum verify MetaMask → tetap di halaman login
-                }
-            }
-        };
-        checkAutoLogin();
-    }, [location.pathname, navigate]);
+
 
     useEffect(() => {
         listenToAccountChanges((newAccount) => {
@@ -244,8 +268,12 @@ const AppContent = () => {
 
     return (
         <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/" element={
+                <GuestRoute><Login /></GuestRoute>
+            } />
+            <Route path="/register" element={
+                <GuestRoute><Register /></GuestRoute>
+            } />
 
             <Route path="/home" element={
                 <ProtectedRoute><ProfileCompleteRoute>
@@ -258,25 +286,25 @@ const AppContent = () => {
             } />
 
             <Route path="/perizinan-dokter" element={
-                <PatientDoctorRouteWithAuth><ProfileCompleteRoute>
+                <ProtectedRoute><PatientDoctorRouteWithAuth><ProfileCompleteRoute>
                     <DaftarDokter />
-                </ProfileCompleteRoute></PatientDoctorRouteWithAuth>
+                </ProfileCompleteRoute></PatientDoctorRouteWithAuth></ProtectedRoute>
             } />
 
             <Route path="/catatan-dokter" element={
-                <PatientDoctorRouteWithAuth><ProfileCompleteRoute>
+                <ProtectedRoute><PatientDoctorRouteWithAuth><ProfileCompleteRoute>
                     <CatatanDokter />
-                </ProfileCompleteRoute></PatientDoctorRouteWithAuth>
+                </ProfileCompleteRoute></PatientDoctorRouteWithAuth></ProtectedRoute>
             } />
 
             <Route path="/rekam-medis" element={
-                <DoctorOnlyRoute><ProfileCompleteRoute>
+                <ProtectedRoute><DoctorOnlyRoute><ProfileCompleteRoute>
                     <RekamMedis />
-                </ProfileCompleteRoute></DoctorOnlyRoute>
+                </ProfileCompleteRoute></DoctorOnlyRoute></ProtectedRoute>
             } />
 
             <Route path="/admin" element={
-                <AdminRoute><AdminDashboard /></AdminRoute>
+                <ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>
             } />
 
             <Route path="/riwayat" element={
